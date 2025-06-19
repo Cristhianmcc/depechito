@@ -87,6 +87,9 @@ async function fetchCatalog(url, key) {
 }
 
 async function fetchNewLink(channelName) {
+  // Log para depuración en producción
+  console.log(`Intentando obtener enlace para: ${channelName} desde ${API_BASE_URL}`);
+  
   // Caso especial DirecTV Sports via scraper backend
   const lower = channelName.toLowerCase();
   if (lower.includes('directv sports 2') || lower.includes('dsports2')) {
@@ -207,9 +210,16 @@ function showStatus(msg) {
     statusEl = document.createElement('div');
     statusEl.id = 'status-msg';
     statusEl.className = 'status';
+    statusEl.style.padding = '10px';
+    statusEl.style.margin = '10px 0';
+    statusEl.style.backgroundColor = 'rgba(0,0,0,0.7)';
+    statusEl.style.color = 'white';
+    statusEl.style.borderRadius = '4px';
+    statusEl.style.textAlign = 'center';
     const playerContainer = document.querySelector('.video-player');
     playerContainer.appendChild(statusEl);
   }
+  console.log(`Status: ${msg}`); // Log en consola para depuración
   statusEl.textContent = msg;
 }
 
@@ -226,50 +236,130 @@ function attachStream(url) {
     hls.destroy();
     hls = null;
   }
+  
+  showStatus(`Intentando conectar a ${currentChannel}...`);
+  console.log(`Intentando conectar a stream: ${url}`);
+  
   if (Hls.isSupported()) {
-    hls = new Hls({ maxBufferSize: 60 * 1000 * 1000 });
+    hls = new Hls({ 
+      maxBufferSize: 60 * 1000 * 1000,
+      xhrSetup: function(xhr) {
+        // Configurar encabezados para evitar bloqueos CORS y referrer
+        xhr.withCredentials = false;
+        xhr.setRequestHeader('Referer', 'https://pelotalibre.com/');
+        xhr.setRequestHeader('Origin', 'https://pelotalibre.com');
+      }
+    });
+    
     hls.loadSource(url);
     hls.attachMedia(video);
+    
     hls.on(Hls.Events.MANIFEST_PARSED, () => {
-      video.play();
-      showStatus(`Reproduciendo ${currentChannel}`);
+      // Intenta reproducir con manejo de errores para la política de autoplay
+      const playPromise = video.play();
+      
+      if (playPromise !== undefined) {
+        playPromise.then(() => {
+          showStatus(`Reproduciendo ${currentChannel}`);
+        }).catch(error => {
+          console.log('Autoplay prevented:', error);
+          showStatus('Haz clic en PLAY ▶️ para comenzar la reproducción');
+          // Añadir un botón de play visible para ayudar al usuario
+          addPlayButton();
+        });
+      }
     });
+    
     hls.on(Hls.Events.LEVEL_LOADED, (_, data) => {
       const qBadge = document.getElementById('quality-badge');
       if (qBadge && data && data.details) {
         qBadge.textContent = data.details.height + 'p';
       }
     });
+    
     hls.on(Hls.Events.ERROR, (_, data) => {
+      console.error('HLS Error:', data.type, data.details, data);
       if (data.fatal) handleStreamError();
     });
   } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
     video.src = url;
     video.addEventListener('loadedmetadata', () => {
-      video.play();
-      showStatus(`Reproduciendo ${currentChannel}`);
+      const playPromise = video.play();
+      
+      if (playPromise !== undefined) {
+        playPromise.then(() => {
+          showStatus(`Reproduciendo ${currentChannel}`);
+        }).catch(error => {
+          console.log('Autoplay prevented:', error);
+          showStatus('Haz clic en PLAY ▶️ para comenzar la reproducción');
+          addPlayButton();
+        });
+      }
     }, { once: true });
-    video.addEventListener('error', handleStreamError, { once: true });
+    video.addEventListener('error', (e) => {
+      console.error('Video error:', e);
+      handleStreamError();
+    }, { once: true });
   } else {
     showStatus('Tu navegador no soporta HLS.');
   }
 }
 
+// Función para añadir un botón de reproducción visible
+function addPlayButton() {
+  let playBtn = document.getElementById('manual-play-btn');
+  if (!playBtn) {
+    playBtn = document.createElement('button');
+    playBtn.id = 'manual-play-btn';
+    playBtn.textContent = '▶️ Reproducir';
+    playBtn.style.padding = '10px 20px';
+    playBtn.style.fontSize = '16px';
+    playBtn.style.margin = '10px auto';
+    playBtn.style.display = 'block';
+    playBtn.style.backgroundColor = '#3498db';
+    playBtn.style.color = 'white';
+    playBtn.style.border = 'none';
+    playBtn.style.borderRadius = '5px';
+    playBtn.style.cursor = 'pointer';
+    
+    playBtn.addEventListener('click', () => {
+      video.play().then(() => {
+        showStatus(`Reproduciendo ${currentChannel}`);
+        playBtn.style.display = 'none';
+      }).catch(err => {
+        console.error('Error al intentar reproducir:', err);
+        showStatus('No se pudo iniciar la reproducción. Intenta en otra pestaña o navegador.');
+      });
+    });
+    
+    const playerContainer = document.querySelector('.video-player');
+    playerContainer.insertBefore(playBtn, document.getElementById('status-msg'));
+  } else {
+    playBtn.style.display = 'block';
+  }
+}
+// esto es para manejar errores de reproducción , si no se puede reproducir la fuente actual , se intenta con la siguiente 
 function handleStreamError() {
   const list = CHANNELS[currentChannel];
   if (sourceIndex + 1 < list.length) {
     sourceIndex += 1;
+    showStatus(`Probando fuente alternativa ${sourceIndex+1}/${list.length}...`);
     attachStream(list[sourceIndex]);
   } else {
     showStatus('Buscando nueva fuente...');
     fetchNewLink(currentChannel).then(url => {
       if (url) {
+        console.log(`Nueva URL encontrada para ${currentChannel}: ${url.substring(0, 50)}...`);
         CHANNELS[currentChannel].push(url);
         sourceIndex = CHANNELS[currentChannel].length - 1;
         attachStream(url);
       } else {
-        showStatus('No se encontró ninguna fuente disponible.');
+        showStatus('No se encontró ninguna fuente disponible. Intenta con otro canal.');
+        console.error(`No se pudo encontrar enlace para ${currentChannel}`);
       }
+    }).catch(err => {
+      console.error('Error al buscar fuente:', err);
+      showStatus(`Error al buscar fuente: ${err.message || 'Error desconocido'}`);
     });
   }
 }

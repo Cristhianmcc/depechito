@@ -28,7 +28,19 @@ function extractM3U8(html) {
   return match ? match[0] : null;
 }
 
+// Endpoint para verificar el estado del servidor
+app.get('/api/status', (req, res) => {
+  res.json({
+    status: 'online',
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || 'development',
+    host: req.get('host')
+  });
+});
+
 app.get('/api/stream/:channel', async (req, res) => {
+  console.log(`Solicitud de stream recibida para canal: ${req.params.channel} desde ${req.get('origin') || 'origen desconocido'}`);
+  
   const mapping = {
     dsports: 'dsports',
     movistar: 'movistar',
