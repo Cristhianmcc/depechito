@@ -266,7 +266,7 @@ function attachStream(url) {
   }
   
   // Revisa si el stream es de los proveedores conocidos que podrían tener restricciones CORS
-  const knownRestrictedDomains = ['akamaized.net', 'mux.com', 'cdn.com'];
+  const knownRestrictedDomains = ['akamaized.net', 'mux.com', 'cdn.com', 'fubohd.com', 'dsports', 'espn'];
   const hasCorsRestrictions = knownRestrictedDomains.some(domain => url.includes(domain));
   
   if (hasCorsRestrictions) {
@@ -291,12 +291,9 @@ function attachStream(url) {
   if (Hls.isSupported()) {
     hls = new Hls({ 
       maxBufferSize: 60 * 1000 * 1000,
-      // Eliminamos la configuración de xhrSetup que causa los errores de cabeceras
       xhrSetup: function(xhr) {
-        // No intentamos modificar cabeceras que el navegador bloquea
-        // xhr.withCredentials = false;
-        // xhr.setRequestHeader('Referer', 'https://pelotalibre.com/');
-        // xhr.setRequestHeader('Origin', 'https://pelotalibre.com');
+        // No intentamos modificar cabeceras prohibidas
+        // Nota: Intentar modificar Origin y Referer causa errores y es bloqueado por el navegador
       }
     });
     
@@ -332,6 +329,30 @@ function attachStream(url) {
       
       // Manejo específico para errores de manifestLoadError (muy comunes en streaming deportivo)
       if (data.details === 'manifestLoadError') {
+        // Revisar si es un error HTTP 403 Forbidden
+        const is403Error = data.response && data.response.code === 403;
+        
+        if (is403Error) {
+          console.log('Detectado error 403 Forbidden - El proveedor está bloqueando activamente el acceso');
+          showStatus(`⛔ Acceso bloqueado por el proveedor del stream (Error 403). El canal ${currentChannel} no permite reproducción externa.`);
+          
+          // Mostrar mensaje específico para errores 403 en canales deportivos
+          if (currentChannel.includes('DIRECTV') || 
+              currentChannel.includes('ESPN') || 
+              currentChannel.includes('Movistar') || 
+              currentChannel.includes('Gol') ||
+              currentChannel.includes('Liga 1')) {
+            
+            showBlockedStreamMessage(currentChannel);
+            
+            // No intentamos más alternativas con este proveedor si es un error 403
+            if (data.fatal) {
+              handleStreamError(true, true); // El segundo parámetro indica un error 403
+              return;
+            }
+          }
+        }
+        
         // Verificar si es un stream que requiere proxy
         if (needsProxyAccess(data.url)) {
           console.log('Error de carga de manifiesto en un dominio restringido. Intentando con proxy...');
@@ -426,8 +447,16 @@ function addPlayButton() {
   }
 }
 // esto es para manejar errores de reproducción , si no se puede reproducir la fuente actual , se intenta con la siguiente 
-function handleStreamError(isAccessError = false) {
+function handleStreamError(isAccessError = false, is403Error = false) {
   const list = CHANNELS[currentChannel];
+  
+  // Si es un error 403 específico, mostramos un mensaje claro y no intentamos más
+  if (is403Error) {
+    console.log(`Error 403 detectado para ${currentChannel}. El proveedor bloquea la reproducción.`);
+    showStatus(`⛔ El proveedor de ${currentChannel} bloquea activamente la reproducción desde nuestro sitio.`);
+    showBlockedStreamMessage(currentChannel);
+    return; // No intentamos más con este canal si hay un bloqueo activo
+  }
   
   // Si es un error de acceso específico para canales deportivos, intentamos usar el proxy directamente
   if (isAccessError && (
@@ -777,8 +806,9 @@ async function checkApiStatus() {
       infoMsg.style.textAlign = 'center';
       infoMsg.innerHTML = `
         <p><strong>👋 ¡Bienvenido a Depechito TV!</strong></p>
-        <p>Prueba los canales "Ejemplo 1", "NASA TV" o "Red Bull TV" que funcionan correctamente en esta versión web.</p>
-        <p>Los canales deportivos pueden requerir más intentos para funcionar debido a restricciones de los proveedores.</p>
+        <p>Para una mejor experiencia, inicia con los canales "Ejemplo 1", "NASA TV" o "Red Bull TV" que funcionan correctamente.</p>
+        <p>⚠️ <strong>Importante:</strong> Los canales deportivos pueden estar bloqueados por los proveedores. Si ves errores 403, es porque el proveedor deportivo está bloqueando activamente el acceso.</p>
+        <p>En desarrollo local, más canales podrían funcionar correctamente.</p>
       `;
       
       const playerContainer = document.querySelector('.video-player');
@@ -818,10 +848,81 @@ async function checkApiStatus() {
 const DOMAINS_REQUIRING_PROXY = [
   'fubohd.com',
   'televisionlibre.net',
-  'pelotalibre'
+  'pelotalibre',
+  'directv.com'
 ];
 
 // Función para determinar si una URL necesita ser accedida a través del proxy
 function needsProxyAccess(url) {
   return DOMAINS_REQUIRING_PROXY.some(domain => url.includes(domain));
+}
+
+// Función para mostrar un mensaje específico cuando un canal deportivo está bloqueado
+function showBlockedStreamMessage(channelName) {
+  let blockedMsg = document.getElementById('blocked-stream-msg');
+  if (!blockedMsg) {
+    blockedMsg = document.createElement('div');
+    blockedMsg.id = 'blocked-stream-msg';
+    blockedMsg.style.padding = '10px';
+    blockedMsg.style.margin = '10px 0';
+    blockedMsg.style.backgroundColor = 'rgba(231, 76, 60, 0.8)';
+    blockedMsg.style.color = 'white';
+    blockedMsg.style.borderRadius = '4px';
+    blockedMsg.style.textAlign = 'center';
+    blockedMsg.style.fontWeight = 'bold';
+    
+    blockedMsg.innerHTML = `
+      <p>⛔ El canal ${channelName} está bloqueando la reproducción directa</p>
+      <p>Los proveedores de canales deportivos usan protección contra reproducción en sitios externos.</p>
+      <p>Te recomendamos intentar con los canales de demostración mientras mejoramos el acceso:</p>
+      <div id="blocked-demo-buttons" style="margin-top: 10px;"></div>
+    `;
+    
+    const playerContainer = document.querySelector('.video-player');
+    if (playerContainer) {
+      playerContainer.appendChild(blockedMsg);
+      
+      // Agregar botones para cada canal de demostración
+      const demoButtons = document.getElementById('blocked-demo-buttons');
+      Object.keys(DEMO_STREAMS).forEach(name => {
+        const btn = document.createElement('button');
+        btn.textContent = name;
+        btn.style.margin = '5px';
+        btn.style.padding = '8px 15px';
+        btn.style.backgroundColor = '#2ecc71';
+        btn.style.color = 'white';
+        btn.style.border = 'none';
+        btn.style.borderRadius = '4px';
+        btn.style.cursor = 'pointer';
+        
+        btn.addEventListener('click', () => {
+          const channelList = document.getElementById('channel-list');
+          const demoChannel = Array.from(channelList.children).find(li => li.textContent === name);
+          if (demoChannel) {
+            demoChannel.click();
+            // Ocultar el mensaje después de seleccionar
+            blockedMsg.style.display = 'none';
+          }
+        });
+        
+        demoButtons.appendChild(btn);
+      });
+      
+      // Botón para cerrar el mensaje
+      const closeBtn = document.createElement('button');
+      closeBtn.textContent = '✕';
+      closeBtn.style.position = 'absolute';
+      closeBtn.style.right = '10px';
+      closeBtn.style.top = '10px';
+      closeBtn.style.background = 'transparent';
+      closeBtn.style.border = 'none';
+      closeBtn.style.color = 'white';
+      closeBtn.style.fontSize = '16px';
+      closeBtn.style.cursor = 'pointer';
+      closeBtn.onclick = () => blockedMsg.style.display = 'none';
+      blockedMsg.appendChild(closeBtn);
+    }
+  } else {
+    blockedMsg.style.display = 'block';
+  }
 }
