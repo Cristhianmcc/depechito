@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canales IPTV</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <h1>Canales de TV en Vivo </h1>
+        <h2>Cristhian TV</h2>
+        <p>Elige un canal para comenzar a ver en vivo.</p>
+    </header>
+
+    <div class="container">
+        <div class="channel-list">
+            <input id="search" type="text" placeholder="Buscar canal..." />
+            <h2>Canales</h2>
+            <ul id="channel-list">
+                <!-- Lista de canales se cargará dinámicamente -->
+            </ul>
+        </div>
+
+        <div class="video-player">
+            <div class="player-header">
+                <img id="channel-logo" src="" alt="logo" />
+                <span id="channel-title">Seleccione un canal</span>
+                <span id="quality-badge"></span>
+            </div>
+            <h2>Reproductor de Video</h2>
+            <video id="player" controls width="100%" autoplay playsinline>
+                <source src="" type="application/x-mpegURL">
+                Tu navegador no soporta este formato.
+            </video>
+        </div>
+    </div>
+
+    <footer>
+        <p>&copy; 2025 Canales IPTV</p>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <script src="scripts.js"></script>
+    
+</body>
+</html>
