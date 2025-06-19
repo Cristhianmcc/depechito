@@ -6,10 +6,29 @@
 // Se eliminan playlists externas; usamos backend para canales específicos
 const PLAYLIST_URLS = []; // dejado vacío por si se quiere volver a usar
 
+// URLs de demostración que funcionan en producción - Usar sólo para pruebas
+const DEMO_STREAMS = {
+  "Ejemplo 1": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8", // Stream de prueba 1080p
+  "Ejemplo 2": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8", // Stream de prueba Akamai
+  "NASA TV": "https://ntv1.akamaized.net/hls/live/2014075/NASA-NTV1-HLS/master.m3u8", // NASA TV pública
+  "Red Bull TV": "https://rbmn-live.akamaized.net/hls/live/590964/BoRB-AT/master.m3u8" // Red Bull TV
+};
+
 // API base URL - cambia automáticamente entre desarrollo y producción
-const API_BASE_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+const isLocalhost = window.location.hostname === 'localhost' || 
+                   window.location.hostname === '127.0.0.1' || 
+                   window.location.hostname === '';
+
+// Forzar la URL específica de Render en producción
+const API_BASE_URL = isLocalhost 
   ? 'http://localhost:4000'
-  : window.location.origin;
+  : 'https://depechito.onrender.com';
+
+console.log('==== CONFIGURACIÓN DE LA APLICACIÓN ====');
+console.log('Host actual:', window.location.hostname);
+console.log('Ambiente detectado:', isLocalhost ? 'Desarrollo local' : 'Producción');
+console.log('API_BASE_URL:', API_BASE_URL);
+console.log('====================================');
 
 // Mapas de logos (se pueden sustituir por archivos locales en /logos)
 const LOGOS = {
@@ -391,10 +410,34 @@ function loadChannel(name) {
   }
 }
 
+// Función para verificar si la API está accesible y funcionando
+async function checkApiStatus() {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/status`);
+    if (res.ok) {
+      const data = await res.json();
+      console.log('✅ API funcionando correctamente:', data);
+      return true;
+    } else {
+      console.error('❌ API respondió con error:', res.status);
+      return false;
+    }
+  } catch (e) {
+    console.error('❌ No se pudo conectar con la API:', e);
+    return false;
+  }
+}
+
 //--------------------------------------
 // Inicializar lista de canales y eventos
 //--------------------------------------
 (async function init() {
+  // Verificar conexión a la API
+  const apiStatus = await checkApiStatus();
+  if (!apiStatus && !isLocalhost) {
+    console.warn('⚠️ API no disponible, se cargarán solo canales de demostración');
+  }
+  
   // 1) Cargar y fusionar todas las playlists externas antes de construir la UI
   for (const url of PLAYLIST_URLS) {
     try {
@@ -404,6 +447,27 @@ function loadChannel(name) {
     } catch (e) {
       console.warn('No se pudo cargar la playlist', url, e);
     }
+  }
+
+  // Añadir streams de demostración que funcionan en producción
+  if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    console.log('Añadiendo canales de demostración para entorno de producción');
+    
+    // Crear un nuevo objeto CHANNELS con los canales de demo primero
+    const demoChannels = {};
+    
+    // Añadir primero los canales de demostración
+    Object.keys(DEMO_STREAMS).forEach(name => {
+      demoChannels[name] = [DEMO_STREAMS[name]];
+    });
+    
+    // Luego añadir los canales regulares
+    Object.keys(CHANNELS).forEach(name => {
+      demoChannels[name] = CHANNELS[name];
+    });
+    
+    // Reemplazar el objeto CHANNELS
+    Object.assign(CHANNELS, demoChannels);
   }
 
   const listContainer = document.getElementById('channel-list');
@@ -419,6 +483,43 @@ function loadChannel(name) {
   });
   // Auto-seleccionar primer canal
   if (listContainer.firstElementChild) listContainer.firstElementChild.click();
+
+  // Mostrar un mensaje informativo en producción
+  if (!isLocalhost) {
+    setTimeout(() => {
+      const infoMsg = document.createElement('div');
+      infoMsg.style.padding = '10px';
+      infoMsg.style.margin = '15px 0';
+      infoMsg.style.backgroundColor = 'rgba(52, 152, 219, 0.7)';
+      infoMsg.style.color = 'white';
+      infoMsg.style.borderRadius = '4px';
+      infoMsg.style.textAlign = 'center';
+      infoMsg.innerHTML = `
+        <p><strong>👋 ¡Bienvenido a Depechito TV!</strong></p>
+        <p>Prueba los canales "Ejemplo 1", "NASA TV" o "Red Bull TV" que funcionan correctamente en esta versión web.</p>
+        <p>Los canales deportivos pueden requerir más intentos para funcionar debido a restricciones de los proveedores.</p>
+      `;
+      
+      const playerContainer = document.querySelector('.video-player');
+      if (playerContainer) {
+        playerContainer.appendChild(infoMsg);
+        
+        // Botón para cerrar el mensaje
+        const closeBtn = document.createElement('button');
+        closeBtn.textContent = '✕';
+        closeBtn.style.position = 'absolute';
+        closeBtn.style.right = '10px';
+        closeBtn.style.top = '10px';
+        closeBtn.style.background = 'transparent';
+        closeBtn.style.border = 'none';
+        closeBtn.style.color = 'white';
+        closeBtn.style.fontSize = '16px';
+        closeBtn.style.cursor = 'pointer';
+        closeBtn.onclick = () => infoMsg.style.display = 'none';
+        infoMsg.appendChild(closeBtn);
+      }
+    }, 2000);
+  }
 
   // Buscador
   const searchInput = document.getElementById('search');

@@ -9,7 +9,7 @@ const cors = require('cors');
 const https = require('https');
 const path = require('path');
 
-const PORT = process.env.PORT || 4000;
+const PORT = process.env.PORT || 4000; // Puerto del servidor y environment variable, pero en produccion se usa el puerto 80 por defecto 
 const app = express();
 app.use(cors());
 
@@ -192,9 +192,18 @@ app.get('/api/stream/:channel', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => console.log(`Scraper proxy running on http://localhost:${PORT}`));
-
-// Ruta para la página principal
+// Ruta para la página principal - debe estar antes de app.listen
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
+
+// Ruta para verificar la conexión
+app.get('/ping', (req, res) => {
+  res.json({ 
+    status: 'ok', 
+    message: 'El servidor está funcionando correctamente',
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.listen(PORT, () => console.log(`Scraper proxy running on http://localhost:${PORT}`));
