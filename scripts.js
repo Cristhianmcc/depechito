@@ -273,6 +273,21 @@ function attachStream(url) {
     console.warn('Este stream puede tener restricciones CORS que impidan su reproducción directa');
   }
   
+  // Verificar si necesitamos usar proxy para este dominio
+  const requiresProxy = needsProxyAccess(url);
+  if (requiresProxy) {
+    console.log(`Este stream de ${currentChannel} puede requerir proxy. Se intentará cargar a través del servidor.`);
+    
+    // Si es un canal deportivo, es mejor advertir al usuario
+    if (currentChannel.includes('DIRECTV') || 
+        currentChannel.includes('ESPN') || 
+        currentChannel.includes('Movistar') || 
+        currentChannel.includes('Gol') ||
+        currentChannel.includes('Liga 1')) {
+      showStatus(`⚠️ Los canales deportivos pueden requerir permisos especiales. Intentando reproducir ${currentChannel}...`);
+    }
+  }
+  
   if (Hls.isSupported()) {
     hls = new Hls({ 
       maxBufferSize: 60 * 1000 * 1000,
@@ -314,6 +329,31 @@ function attachStream(url) {
     hls.on(Hls.Events.ERROR, (_, data) => {
       // Registramos el error en consola para depuración
       console.error('HLS Error:', data.type, data.details, data);
+      
+      // Manejo específico para errores de manifestLoadError (muy comunes en streaming deportivo)
+      if (data.details === 'manifestLoadError') {
+        // Verificar si es un stream que requiere proxy
+        if (needsProxyAccess(data.url)) {
+          console.log('Error de carga de manifiesto en un dominio restringido. Intentando con proxy...');
+          
+          // Para canales deportivos específicos, intentamos usar directamente la API del servidor
+          if (currentChannel.includes('DIRECTV') || 
+              currentChannel.includes('ESPN') || 
+              currentChannel.includes('Movistar') || 
+              currentChannel.includes('Gol') ||
+              currentChannel.includes('Liga 1')) {
+            
+            // Informamos al usuario que estamos intentando una alternativa
+            showStatus(`El acceso directo a ${currentChannel} está bloqueado. Intentando a través del servidor...`);
+            
+            // Forzamos el siguiente intento
+            if (data.fatal) {
+              handleStreamError(true); // Pasamos true para indicar que es un error de acceso
+              return;
+            }
+          }
+        }
+      }
       
       // Si el error es fatal, intentamos otra fuente
       if (data.fatal) {
@@ -386,8 +426,41 @@ function addPlayButton() {
   }
 }
 // esto es para manejar errores de reproducción , si no se puede reproducir la fuente actual , se intenta con la siguiente 
-function handleStreamError() {
+function handleStreamError(isAccessError = false) {
   const list = CHANNELS[currentChannel];
+  
+  // Si es un error de acceso específico para canales deportivos, intentamos usar el proxy directamente
+  if (isAccessError && (
+      currentChannel.includes('DIRECTV') || 
+      currentChannel.includes('ESPN') || 
+      currentChannel.includes('Movistar') || 
+      currentChannel.includes('Gol') ||
+      currentChannel.includes('Liga 1'))) {
+    
+    showStatus(`Intentando obtener ${currentChannel} a través del servidor...`);
+    
+    // Buscamos una nueva URL específicamente a través de nuestro proxy
+    fetchNewLink(currentChannel).then(url => {
+      if (url) {
+        console.log(`Nueva URL obtenida a través del proxy para ${currentChannel}`);
+        // Agregamos la nueva URL a la lista si no existe
+        if (!CHANNELS[currentChannel].includes(url)) {
+          CHANNELS[currentChannel].push(url);
+        }
+        sourceIndex = CHANNELS[currentChannel].indexOf(url);
+        attachStream(url);
+      } else {
+        showStatus(`No fue posible obtener una fuente para ${currentChannel}. Los servidores pueden estar bloqueando el acceso o el canal no está disponible.`);
+        showTryDemoChannelsMessage();
+      }
+    }).catch(err => {
+      console.error('Error al buscar fuente en proxy:', err);
+      showStatus(`Error al intentar acceder a ${currentChannel}. Los canales deportivos pueden tener restricciones geográficas o de IP.`);
+      showTryDemoChannelsMessage();
+    });
+    
+    return;
+  }
   
   // Si hay fuentes alternativas disponibles
   if (sourceIndex + 1 < list.length) {
@@ -477,6 +550,80 @@ function showTryAnotherButton() {
   }
 }
 
+// Mostrar mensaje para probar canales de demostración
+function showTryDemoChannelsMessage() {
+  showStatus('Los canales deportivos pueden tener restricciones. Prueba con los canales de demostración.');
+  
+  let demoMsg = document.getElementById('demo-channels-msg');
+  if (!demoMsg) {
+    demoMsg = document.createElement('div');
+    demoMsg.id = 'demo-channels-msg';
+    demoMsg.style.padding = '10px';
+    demoMsg.style.margin = '10px 0';
+    demoMsg.style.backgroundColor = 'rgba(41, 128, 185, 0.7)';
+    demoMsg.style.color = 'white';
+    demoMsg.style.borderRadius = '4px';
+    demoMsg.style.textAlign = 'center';
+    demoMsg.style.fontWeight = 'bold';
+    
+    demoMsg.innerHTML = `
+      <p>⚠️ Los canales deportivos pueden requerir acceso especial o estar bloqueados geográficamente</p>
+      <p>Te recomendamos probar los canales de demostración que funcionan correctamente:</p>
+      <div id="demo-channels-buttons" style="margin-top: 10px;"></div>
+    `;
+    
+    const playerContainer = document.querySelector('.video-player');
+    if (playerContainer) {
+      playerContainer.appendChild(demoMsg);
+      
+      // Agregar botones para cada canal de demostración
+      const demoButtons = document.getElementById('demo-channels-buttons');
+      Object.keys(DEMO_STREAMS).forEach(name => {
+        const btn = document.createElement('button');
+        btn.textContent = name;
+        btn.style.margin = '5px';
+        btn.style.padding = '8px 15px';
+        btn.style.backgroundColor = '#2ecc71';
+        btn.style.color = 'white';
+        btn.style.border = 'none';
+        btn.style.borderRadius = '4px';
+        btn.style.cursor = 'pointer';
+        
+        btn.addEventListener('click', () => {
+          const channelList = document.getElementById('channel-list');
+          const demoChannel = Array.from(channelList.children).find(li => li.textContent === name);
+          if (demoChannel) {
+            demoChannel.click();
+            // Ocultar el mensaje después de seleccionar
+            demoMsg.style.display = 'none';
+          }
+        });
+        
+        demoButtons.appendChild(btn);
+      });
+      
+      // Botón para cerrar el mensaje
+      const closeBtn = document.createElement('button');
+      closeBtn.textContent = '✕';
+      closeBtn.style.position = 'absolute';
+      closeBtn.style.right = '10px';
+      closeBtn.style.top = '10px';
+      closeBtn.style.background = 'transparent';
+      closeBtn.style.border = 'none';
+      closeBtn.style.color = 'white';
+      closeBtn.style.fontSize = '16px';
+      closeBtn.style.cursor = 'pointer';
+      closeBtn.onclick = () => demoMsg.style.display = 'none';
+      demoMsg.appendChild(closeBtn);
+    }
+  } else {
+    demoMsg.style.display = 'block';
+  }
+  
+  // También mostrar el botón para probar otro canal
+  showTryAnotherButton();
+}
+
 function loadChannel(name) {
   // UI: actualizar logo, título y reset de badge
   const logoEl = document.getElementById('channel-logo');
@@ -486,17 +633,57 @@ function loadChannel(name) {
   const qBadge = document.getElementById('quality-badge');
   if (qBadge) qBadge.textContent = '';
 
+  // Ocultar mensajes previos de otros canales
+  const demoMsg = document.getElementById('demo-channels-msg');
+  if (demoMsg) demoMsg.style.display = 'none';
+  
+  const tryBtn = document.getElementById('try-another-btn');
+  if (tryBtn) tryBtn.style.display = 'none';
+
   currentChannel = name;
   sourceIndex = 0;
   const list = CHANNELS[name];
-  showStatus(`Cargando ${name}...`);
+  
+  // Mostrar un mensaje específico para canales deportivos
+  const isDeportesChannel = name.includes('DIRECTV') || 
+                          name.includes('ESPN') || 
+                          name.includes('Movistar') || 
+                          name.includes('Gol') ||
+                          name.includes('Liga 1');
+                          
+  if (isDeportesChannel && !isLocalhost) {
+    showStatus(`Cargando ${name}... Los canales deportivos pueden tener restricciones de acceso.`);
+  } else {
+    showStatus(`Cargando ${name}...`);
+  }
+  
+  // Si es un canal de demostración, mostramos un mensaje de confianza
+  if (DEMO_STREAMS[name]) {
+    showStatus(`Cargando ${name} (canal de demostración)...`);
+  }
+  
   if (!list || list.length === 0) {
     fetchNewLink(name).then(url => {
       if (url) {
         CHANNELS[name] = [url];
         attachStream(url);
       } else {
-        showStatus('No se encontró ninguna fuente disponible.');
+        if (isDeportesChannel) {
+          showStatus(`No se encontró ninguna fuente disponible para ${name}. Los canales deportivos pueden tener restricciones.`);
+          showTryDemoChannelsMessage();
+        } else {
+          showStatus('No se encontró ninguna fuente disponible.');
+          showTryAnotherButton();
+        }
+      }
+    }).catch(err => {
+      console.error(`Error al cargar ${name}:`, err);
+      if (isDeportesChannel) {
+        showStatus(`Error al acceder a ${name}. Los canales deportivos pueden estar restringidos.`);
+        showTryDemoChannelsMessage();
+      } else {
+        showStatus(`Error al cargar el canal: ${err.message || 'Error desconocido'}`);
+        showTryAnotherButton();
       }
     });
   } else {
@@ -626,3 +813,15 @@ async function checkApiStatus() {
     });
   }
 })();
+
+// Lista de dominios que requieren acceso a través de proxy debido a restricciones
+const DOMAINS_REQUIRING_PROXY = [
+  'fubohd.com',
+  'televisionlibre.net',
+  'pelotalibre'
+];
+
+// Función para determinar si una URL necesita ser accedida a través del proxy
+function needsProxyAccess(url) {
+  return DOMAINS_REQUIRING_PROXY.some(domain => url.includes(domain));
+}
