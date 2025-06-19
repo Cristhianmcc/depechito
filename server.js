@@ -9,8 +9,12 @@ const cors = require('cors');
 const https = require('https');
 const path = require('path');
 
-const PORT = process.env.PORT || 4000; // Puerto del servidor y environment variable, pero en produccion se usa el puerto 80 por defecto 
+// Configuración del servidor
+const PORT = process.env.PORT || 4000;
+const APP_URL = process.env.APP_URL || 'https://depechito.onrender.com';
 const app = express();
+
+// Habilitar CORS para todas las rutas
 app.use(cors());
 
 // Agente HTTPS que ignora errores de certificado SSL
@@ -202,6 +206,15 @@ app.get('/ping', (req, res) => {
   res.json({ 
     status: 'ok', 
     message: 'El servidor está funcionando correctamente',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Endpoint para obtener la información del servidor
+app.get('/api/config', (req, res) => {
+  res.json({
+    apiUrl: APP_URL,
+    environment: process.env.NODE_ENV || 'development',
     timestamp: new Date().toISOString()
   });
 });

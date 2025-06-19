@@ -9,7 +9,7 @@ const PLAYLIST_URLS = []; // dejado vacío por si se quiere volver a usar
 // URLs de demostración que funcionan en producción - Usar sólo para pruebas
 const DEMO_STREAMS = {
   "Ejemplo 1": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8", // Stream de prueba 1080p
-  "Ejemplo 2": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8", // Stream de prueba Akamai
+  "Ejemplo 2": "https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8", // Stream de prueba más estable
   "NASA TV": "https://ntv1.akamaized.net/hls/live/2014075/NASA-NTV1-HLS/master.m3u8", // NASA TV pública
   "Red Bull TV": "https://rbmn-live.akamaized.net/hls/live/590964/BoRB-AT/master.m3u8" // Red Bull TV
 };
@@ -259,14 +259,29 @@ function attachStream(url) {
   showStatus(`Intentando conectar a ${currentChannel}...`);
   console.log(`Intentando conectar a stream: ${url}`);
   
+  // Verificar si es un stream HTTPS cuando estamos en un sitio HTTPS
+  if (window.location.protocol === 'https:' && url.startsWith('http:')) {
+    console.warn('Intentando cargar un stream HTTP desde una página HTTPS, esto puede ser bloqueado por el navegador');
+    showStatus('⚠️ Este stream usa HTTP inseguro y puede ser bloqueado. Intentando cargar...');
+  }
+  
+  // Revisa si el stream es de los proveedores conocidos que podrían tener restricciones CORS
+  const knownRestrictedDomains = ['akamaized.net', 'mux.com', 'cdn.com'];
+  const hasCorsRestrictions = knownRestrictedDomains.some(domain => url.includes(domain));
+  
+  if (hasCorsRestrictions) {
+    console.warn('Este stream puede tener restricciones CORS que impidan su reproducción directa');
+  }
+  
   if (Hls.isSupported()) {
     hls = new Hls({ 
       maxBufferSize: 60 * 1000 * 1000,
+      // Eliminamos la configuración de xhrSetup que causa los errores de cabeceras
       xhrSetup: function(xhr) {
-        // Configurar encabezados para evitar bloqueos CORS y referrer
-        xhr.withCredentials = false;
-        xhr.setRequestHeader('Referer', 'https://pelotalibre.com/');
-        xhr.setRequestHeader('Origin', 'https://pelotalibre.com');
+        // No intentamos modificar cabeceras que el navegador bloquea
+        // xhr.withCredentials = false;
+        // xhr.setRequestHeader('Referer', 'https://pelotalibre.com/');
+        // xhr.setRequestHeader('Origin', 'https://pelotalibre.com');
       }
     });
     
@@ -297,8 +312,21 @@ function attachStream(url) {
     });
     
     hls.on(Hls.Events.ERROR, (_, data) => {
+      // Registramos el error en consola para depuración
       console.error('HLS Error:', data.type, data.details, data);
-      if (data.fatal) handleStreamError();
+      
+      // Si el error es fatal, intentamos otra fuente
+      if (data.fatal) {
+        console.log('Error fatal detectado, intentando recuperar...');
+        handleStreamError();
+      } else if (data.details === 'levelLoadError') {
+        // Intentamos reconectar con la misma fuente después de un breve retraso
+        // Esto puede ayudar con errores temporales de red
+        console.log('Error de carga de nivel, reintentando...');
+        setTimeout(() => {
+          hls.startLoad();
+        }, 1000);
+      }
     });
   } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
     video.src = url;
@@ -360,12 +388,26 @@ function addPlayButton() {
 // esto es para manejar errores de reproducción , si no se puede reproducir la fuente actual , se intenta con la siguiente 
 function handleStreamError() {
   const list = CHANNELS[currentChannel];
+  
+  // Si hay fuentes alternativas disponibles
   if (sourceIndex + 1 < list.length) {
     sourceIndex += 1;
     showStatus(`Probando fuente alternativa ${sourceIndex+1}/${list.length}...`);
+    console.log(`Cambiando a fuente alternativa ${sourceIndex+1} para ${currentChannel}`);
     attachStream(list[sourceIndex]);
   } else {
+    // Si no hay más fuentes en la lista, buscamos nuevas
     showStatus('Buscando nueva fuente...');
+    
+    // Para los canales de demostración, mostramos un mensaje más útil
+    if (DEMO_STREAMS[currentChannel]) {
+      showStatus('Error al reproducir el stream de demostración. Puede haber restricciones por región o el proveedor ha bloqueado el acceso.');
+      
+      // Mostrar botón para intentar otro canal
+      showTryAnotherButton();
+      return;
+    }
+    
     fetchNewLink(currentChannel).then(url => {
       if (url) {
         console.log(`Nueva URL encontrada para ${currentChannel}: ${url.substring(0, 50)}...`);
@@ -375,11 +417,63 @@ function handleStreamError() {
       } else {
         showStatus('No se encontró ninguna fuente disponible. Intenta con otro canal.');
         console.error(`No se pudo encontrar enlace para ${currentChannel}`);
+        
+        // Mostrar botón para intentar otro canal
+        showTryAnotherButton();
       }
     }).catch(err => {
       console.error('Error al buscar fuente:', err);
-      showStatus(`Error al buscar fuente: ${err.message || 'Error desconocido'}`);
+      showStatus(`Error al buscar fuente: ${err.message || 'Error desconocido'}. Intenta con otro canal.`);
+      
+      // Mostrar botón para intentar otro canal
+      showTryAnotherButton();
     });
+  }
+}
+
+// Función para mostrar un botón que permita al usuario intentar otro canal fácilmente
+function showTryAnotherButton() {
+  let tryBtn = document.getElementById('try-another-btn');
+  if (!tryBtn) {
+    tryBtn = document.createElement('button');
+    tryBtn.id = 'try-another-btn';
+    tryBtn.textContent = '🔄 Probar otro canal';
+    tryBtn.style.padding = '10px 20px';
+    tryBtn.style.fontSize = '16px';
+    tryBtn.style.margin = '10px auto';
+    tryBtn.style.display = 'block';
+    tryBtn.style.backgroundColor = '#e74c3c';
+    tryBtn.style.color = 'white';
+    tryBtn.style.border = 'none';
+    tryBtn.style.borderRadius = '5px';
+    tryBtn.style.cursor = 'pointer';
+    
+    // Al hacer clic, volvemos a la lista de canales y resaltamos esa opción
+    tryBtn.addEventListener('click', () => {
+      const channelList = document.getElementById('channel-list');
+      const firstDemoChannel = Array.from(channelList.children).find(li => 
+        li.textContent === "Ejemplo 1" || li.textContent === "NASA TV" || li.textContent === "Red Bull TV"
+      );
+      
+      if (firstDemoChannel) {
+        firstDemoChannel.click();
+      } else if (channelList.firstElementChild) {
+        // Si no hay un canal de demostración, simplemente seleccionamos el primero
+        channelList.firstElementChild.click();
+      }
+      
+      tryBtn.style.display = 'none';
+    });
+    
+    const playerContainer = document.querySelector('.video-player');
+    const statusMsg = document.getElementById('status-msg');
+    if (playerContainer && statusMsg) {
+      playerContainer.insertBefore(tryBtn, statusMsg.nextSibling);
+    } else if (playerContainer) {
+      playerContainer.appendChild(tryBtn);
+    }
+  } else {
+    tryBtn.style.display = 'block';
   }
 }
 
