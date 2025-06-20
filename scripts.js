@@ -194,7 +194,7 @@ const DEMO_STREAMS = {
 // Tokens conocidos para canales específicos (se actualizan manualmente)
 const KNOWN_TOKENS = {
   "Liga 1 Max": "f057ff2933c158c4d7fb2ec39c744773bb914657-96-1750403033-1750385033",
-  "DIRECTV Sports HD": "07e9222a6a330a85295945d750fe7325c719cc21-3e-1750404116-1750386116",
+  "DIRECTV Sports HD": "5ce9d8f836c84d63b9e4f954a2e267042f666749-4-1750406360-1750388360",
   "DIRECTV Sports 2 HD": "31438de0305feebf6b7830afd1f4e83f2bca8bae-40-1750404198-1750386198",
   "ESPN": "d30f1c43672f40df77c0205172841bb77db0d4e2-1d-1750404333-1750386333",
   "ESPN2": "2c75a1d5187aac920acbd797c4adaaf26db13910-8b-1750404417-1750386417",
@@ -235,7 +235,7 @@ const LOGOS = {
 };
 
 const CHANNELS = {
-  "DIRECTV Sports HD": ["https://dtv-latam-jbc.akamaized.net/dash/live/2028183/dtv-latam-jbc/master.mpd"], // Enlace de DirecTV Sports sin token para que el servidor pueda agregar un token actualizado
+  "DIRECTV Sports HD": [], // Dejamos vacío para que use el token actualizado desde KNOWN_TOKENS
   "DIRECTV Sports 2 HD": [],
   "DirecTV Plus": [],
   "Movistar Deportes": [],
@@ -400,7 +400,7 @@ async function fetchNewLink(channelName) {
       }    } else if (lower.includes('directv sports') && !lower.includes('plus')) {
       if (KNOWN_TOKENS["DIRECTV Sports HD"]) {
         const dsportsToken = KNOWN_TOKENS["DIRECTV Sports HD"];
-        return `https://am91cm5leQ.fubohd.com/dsports/mono.m3u8?token=${dsportsToken}`;
+        return `https://aw1wcm92zq.fubohd.com/dsports/mono.m3u8?token=${dsportsToken}`;
       }
       try {
         const res = await fetch(`${API_BASE_URL}/api/stream/dsports`);
@@ -458,49 +458,6 @@ async function fetchNewLink(channelName) {
   } catch (e) {
     console.error('fetchNewLink error', e);
     return null;
-  }
-}
-
-// Función para obtener la URL con token actualizado para DIRECTV Sports HD
-async function getDirecTVSportsURL() {
-  try {
-    console.log('Obteniendo URL actualizada para DirecTV Sports...');
-    const response = await fetch(`${API_BASE_URL}/api/stream/directv-dash`);
-    const data = await response.json();
-    
-    // Eliminar cualquier mensaje de advertencia DASH
-    removeDashWarningMessage();
-    
-    if (data.url) {
-      console.log('URL de DirecTV Sports obtenida correctamente');
-      
-      // Si la URL no tiene token, pero tenemos uno almacenado de una sesión anterior, usar ese
-      const tokenParam = sessionStorage.getItem('directv_sports_token');
-      if (tokenParam && !data.url.includes('hdnts=') && data.url.includes('master.mpd')) {
-        console.log('Usando token almacenado de sesión anterior');
-        return `${data.url}?hdnts=${tokenParam}`;
-      }
-      
-      return data.url;
-    } else {
-      console.error('No se pudo obtener URL de DirecTV Sports:', data.message || 'Error desconocido');
-      
-      // Intentar usar la URL base con el token almacenado si tenemos uno
-      const baseUrl = "https://dtv-latam-jbc.akamaized.net/dash/live/2028183/dtv-latam-jbc/master.mpd";
-      const tokenParam = sessionStorage.getItem('directv_sports_token');
-      
-      if (tokenParam) {
-        console.log('Intentando con token almacenado');
-        return `${baseUrl}?hdnts=${tokenParam}`;
-      }
-      
-      return CHANNELS["DIRECTV Sports HD"][0];
-    }
-  } catch (error) {
-    console.error('Error obteniendo URL de DirecTV Sports:', error);
-    
-    // En caso de error, devolver la URL que tenemos almacenada
-    return CHANNELS["DIRECTV Sports HD"][0];
   }
 }
 
@@ -794,29 +751,7 @@ function attachStream(url) {
   // Verificar si el stream es de formato MPD (DASH)
   if (url.endsWith('.mpd') || url.includes('.mpd?')) {
     console.log('Detectado stream en formato DASH (MPD)');
-    showStatus('Iniciando reproductor DASH para DirecTV Sports...');
-    
-    // Eliminar cualquier mensaje de advertencia DASH
-    removeDashWarningMessage();
-    
-    // Guardar el token si existe para futuras reproducciones
-    if (url.includes('hdnts=')) {
-      const tokenMatch = url.match(/hdnts=([^&]+)/);
-      if (tokenMatch && tokenMatch[1]) {
-        console.log('Token encontrado y almacenado para futura referencia');
-        sessionStorage.setItem('directv_sports_token', tokenMatch[1]);
-      }
-    }
-    
-    // Llamar a la función de configuración DASH directamente
-    setupDashPlayer(url);
-    return;
-  }
-  
-  // Verificar si el stream es de formato MPD (DASH)
-  if (url.endsWith('.mpd') || url.includes('.mpd?')) {
-    console.log('Detectado stream en formato DASH (MPD)');
-    showStatus('Iniciando reproductor DASH para DirecTV Sports...');
+    showStatus('Iniciando reproductor DASH...');
     
     // Eliminar cualquier mensaje de advertencia DASH
     removeDashWarningMessage();
@@ -1094,26 +1029,7 @@ function loadChannel(name, directUrl = null) {
     return;
   }
   
-  // Caso especial para DirecTV Sports HD usando DASH
-  if (name === "DIRECTV Sports HD") {
-    console.log("Obteniendo URL especial para DirecTV Sports HD");
-    getDirecTVSportsURL().then(url => {
-      if (url) {
-        console.log(`URL obtenida para DirecTV Sports HD: ${url.substring(0, 50)}...`);
-        attachStream(url);
-      } else {
-        showStatus("No se pudo obtener la URL para DirecTV Sports HD");
-        showBlockedStreamMessage(name);
-      }
-    }).catch(error => {
-      console.error("Error obteniendo URL para DirecTV Sports HD:", error);
-      showStatus(`Error: ${error.message}`);
-      showBlockedStreamMessage(name);
-    });
-    return;
-  }
-  
-  // Para otros canales, intentar usar las URLs conocidas o buscar una nueva
+  // Para todos los canales, intentar usar las URLs conocidas o buscar una nueva
   if (CHANNELS[name] && CHANNELS[name].length > 0) {
     sourceIndex = 0;
     attachStream(CHANNELS[name][sourceIndex]);
