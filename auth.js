@@ -1,88 +1,58 @@
 /**
  * Sistema de autenticación para De Pechito TV
  * Permite controlar el acceso mediante códigos generados por el administrador
+ * Versión 2.0: Usa API centralizada para la gestión de tokens
  */
 
 // Contraseña maestra del administrador (cámbiala por una segura)
 const ADMIN_PASSWORD = "micausagufy1";
 
+// Usamos la misma API_BASE_URL que está definida en scripts.js
+// En lugar de redefinirla, verificamos si ya existe, y si no, definimos una constante local
+// para compatibilidad con ejecuciones independientes de auth.js
+if (typeof window.API_BASE_URL === 'undefined') {
+  console.log('API_BASE_URL no encontrada en window, usando valor por defecto en auth.js');
+  window.API_BASE_URL = window.location.hostname.includes('localhost') || window.location.hostname.includes('127.0.0.1')
+    ? `http://${window.location.hostname}:4000` // Desarrollo local
+    : ''; // En producción, usamos rutas relativas
+}
+
 // Clase para gestionar tokens de acceso
 class AccessManager {
   constructor() {
-    this.tokens = this.loadTokens();
+    this.tokens = {}; // Almacenamiento local para caché
     this.isAdmin = false;
     
-    // Limpiar tokens expirados al iniciar
-    this.cleanExpiredTokens();
-  }  // Cargar tokens almacenados
-  loadTokens() {
-    try {
-      // Intentar cargar primero con la nueva clave 'machetero_access_tokens'
-      let storedTokens = localStorage.getItem('machetero_access_tokens');
-      
-      // Si no existe, intentar con la clave antigua 'depechito_access_tokens' para migración
-      if (!storedTokens) {
-        const oldTokens = localStorage.getItem('depechito_access_tokens');
-        if (oldTokens) {
-          console.log('Encontrados tokens con nombre antiguo, migrando...');
-          // Si encontramos tokens con el nombre antiguo, los migramos al nuevo
-          localStorage.setItem('machetero_access_tokens', oldTokens);
-          localStorage.removeItem('depechito_access_tokens');
-          storedTokens = oldTokens;
-        }
-      }
-      
-      if (!storedTokens) {
-        console.log('No hay tokens almacenados en localStorage');
-        return {};
-      }
-      
-      try {
-        const parsed = JSON.parse(storedTokens);
-        const tokenCount = Object.keys(parsed).length;
-        console.log('Tokens cargados:', tokenCount, 'tokens');
-        
-        if (tokenCount > 0) {
-          console.log('Lista de tokens disponibles:', Object.keys(parsed));
-          
-          // Verificar si hay tokens expirados
-          const now = new Date().getTime();
-          let expiredCount = 0;
-          Object.keys(parsed).forEach(token => {
-            if (parsed[token].expiresAt && now > parsed[token].expiresAt) {
-              expiredCount++;
-            }
-          });
-          
-          if (expiredCount > 0) {
-            console.log(`Atención: ${expiredCount} tokens están expirados y serán eliminados`);
-          }
-        }
-        
-        return parsed;
-      } catch (parseError) {
-        console.error('Error al parsear tokens desde localStorage:', parseError);
-        
-        // Si hay un error de parseo, intentar reparar o reiniciar
-        console.log('Intentando reparar localStorage...');
-        localStorage.setItem('machetero_access_tokens', '{}');
-        return {};
-      }
-    } catch (error) {
-      console.error('Error al cargar tokens:', error);
+    // Inicializar estado (para el administrador)
+    this.checkAdminStatus();
+  }
+
+  // Cargar tokens desde el servidor (solo admin)
+  async loadTokensFromServer() {
+    if (!this.isAdmin) {
+      console.log('Solo el administrador puede cargar todos los tokens');
       return {};
     }
-  }// Guardar tokens en localStorage
-  saveTokens() {
+    
     try {
-      // Usar la nueva clave de localStorage
-      localStorage.setItem('machetero_access_tokens', JSON.stringify(this.tokens));
-      console.log('Tokens guardados correctamente:', Object.keys(this.tokens).length, 'tokens');
+      console.log('Cargando tokens desde el servidor...');
+      const response = await fetch(`${API_BASE_URL}/api/tokens?password=${ADMIN_PASSWORD}`);
+      
+      if (!response.ok) {
+        throw new Error(`Error ${response.status}: ${response.statusText}`);
+      }
+      
+      const tokens = await response.json();
+      console.log(`Tokens cargados desde el servidor: ${Object.keys(tokens).length} tokens`);
+      this.tokens = tokens; // Actualizar caché local
+      return tokens;
     } catch (error) {
-      console.error('Error al guardar tokens:', error);
+      console.error('Error al cargar tokens desde el servidor:', error);
+      return {};
     }
-  }  // Verificar si un token es válido
-  isValidToken(token) {
+  }
+  // Validar un token a través de la API
+  async isValidToken(token) {
     console.log(`=== VALIDANDO TOKEN: ${token ? token.substring(0, 10) + '...' : 'Token vacío'} ===`);
     
     if (!token) {
@@ -93,42 +63,83 @@ class AccessManager {
     // Limpiar el token de posibles espacios
     token = token.trim();
     
-    // Recargar tokens desde localStorage para asegurar que tenemos los más recientes
-    console.log(`Antes de recargar: ${Object.keys(this.tokens).length} tokens en memoria`);
-    this.tokens = this.loadTokens();
-    console.log(`Después de recargar: ${Object.keys(this.tokens).length} tokens en memoria`);
+    try {
+      console.log(`Validando token mediante API: ${token}`);
+      
+      // Asegurarnos de que la URL esté correctamente formada
+      const url = `${API_BASE_URL}/api/tokens/validate/${encodeURIComponent(token)}`;
+      console.log('URL de validación:', url);
+      
+      const response = await fetch(url);
+      console.log('Respuesta del servidor:', response.status, response.statusText);
+      
+      const data = await response.json();
+      console.log('Datos de respuesta:', data);
+      
+      if (!response.ok || !data.valid) {
+        console.log(`Token inválido o expirado: ${data.error || 'Error desconocido'}`);
+        return false;
+      }
+      
+      // El token es válido
+      console.log(`Token válido - expira en ${data.remaining} (${new Date(data.expiresAt).toLocaleString()})`);
+      console.log(`Nota del token: ${data.note || 'Sin nota'}`);
+      console.log(`=== FIN VALIDACIÓN DE TOKEN ===`);
+      
+      return true;
+    } catch (error) {
+      console.error('Error al validar el token:', error);
+      
+      // Si hay un error de conexión, intentamos validar con localStorage como fallback
+      console.log('Intentando validación fallback con localStorage...');
+      return this.isValidTokenLocalFallback(token);
+    }
+  }
+
+  // Método de fallback para validar token localmente si la API no está disponible
+  isValidTokenLocalFallback(token) {
+    console.log('Usando validación fallback con localStorage');
     
-    // Mostrar la lista actual de tokens
-    console.log('Lista de tokens disponibles:', Object.keys(this.tokens));
-    
-    // Verificar si el token existe en la lista
-    if (!this.tokens[token]) {
-      console.log(`Token no encontrado en la lista de tokens disponibles`);
+    try {
+      // Intentar cargar tokens desde localStorage
+      const storedTokens = localStorage.getItem('machetero_access_tokens');
+      if (!storedTokens) {
+        console.log('No hay tokens en localStorage para validación fallback');
+        return false;
+      }
+      
+      const tokens = JSON.parse(storedTokens);
+      
+      // Verificar si el token existe
+      if (!tokens[token]) {
+        console.log('Token no encontrado en localStorage');
+        return false;
+      }
+      
+      // Verificar si ha expirado
+      const tokenData = tokens[token];
+      const now = new Date().getTime();
+      
+      if (tokenData.expiresAt && now > tokenData.expiresAt) {
+        console.log('Token expirado en validación fallback');
+        return false;
+      }
+      
+      console.log('Token válido en validación fallback');
+      return true;
+    } catch (error) {
+      console.error('Error en validación fallback:', error);
       return false;
     }
-    
-    // Si el token existe, verificar su validez
-    const tokenData = this.tokens[token];
-    const now = new Date().getTime();
-    
-    // Verificar si el token ha expirado
-    if (tokenData.expiresAt && now > tokenData.expiresAt) {
-      console.log(`Token expirado - eliminando. Expiró hace ${Math.round((now - tokenData.expiresAt) / (60 * 1000))} minutos`);
-      delete this.tokens[token];
-      this.saveTokens();
-      return false;
+  }
+
+  // Generar un nuevo token de acceso a través de la API
+  async generateToken(hours = 24, note = "") {
+    if (!this.isAdmin) {
+      console.error('Solo el administrador puede generar tokens');
+      return null;
     }
     
-    // El token es válido
-    const hoursRemaining = Math.floor((tokenData.expiresAt - now) / (60 * 60 * 1000));
-    const minutesRemaining = Math.floor(((tokenData.expiresAt - now) % (60 * 60 * 1000)) / (60 * 1000));
-    console.log(`Token válido - expira en ${hoursRemaining}h ${minutesRemaining}m (${new Date(tokenData.expiresAt).toLocaleString()})`);
-    console.log(`Nota del token: ${tokenData.note || 'Sin nota'}`);
-    console.log(`=== FIN VALIDACIÓN DE TOKEN ===`);
-    
-    return true;
-  }  // Generar un nuevo token de acceso
-  generateToken(hours = 24, note = "") {
     // Crear un token aleatorio con un formato más fácil de escribir
     // Usamos letras mayúsculas y números para mejor legibilidad
     const generateRandomPart = () => {
@@ -141,270 +152,301 @@ class AccessManager {
     const now = new Date();
     const expiresAt = new Date(now.getTime() + hours * 60 * 60 * 1000).getTime();
     
-    // Guardar el token con su fecha de expiración y nota
-    this.tokens[token] = {
-      createdAt: now.getTime(),
-      expiresAt: expiresAt,
-      note: note,
-      hours: hours
-    };
-    
-    // Asegurar que los tokens se guarden inmediatamente
-    this.saveTokens();
-    
-    console.log('Nuevo token generado:', token);
-    console.log('Total de tokens activos:', Object.keys(this.tokens).length);
-    
-    return { token, expiresAt };
+    try {
+      console.log(`Guardando nuevo token en el servidor: ${token}`);
+      const response = await fetch(`${API_BASE_URL}/api/tokens`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          token,
+          expiresAt,
+          note,
+          hours,
+          password: ADMIN_PASSWORD
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`Error al guardar token: ${errorData.error || response.statusText}`);
+      }
+      
+      const data = await response.json();
+      console.log('Token guardado correctamente en el servidor');
+      
+      // Actualizar también en localStorage como fallback
+      this.saveTokenLocalFallback(token, {
+        createdAt: now.getTime(),
+        expiresAt,
+        note,
+        hours
+      });
+      
+      return { token, expiresAt };
+    } catch (error) {
+      console.error('Error al generar token en el servidor:', error);
+      
+      // Si hay un error de conexión, intentar guardar localmente como fallback
+      console.log('Guardando token en localStorage como fallback');
+      const tokenData = {
+        createdAt: now.getTime(),
+        expiresAt,
+        note,
+        hours
+      };
+      
+      this.saveTokenLocalFallback(token, tokenData);
+      return { token, expiresAt };
+    }
   }
-    // Verificar credenciales de administrador
+
+  // Guardar token en localStorage como fallback
+  saveTokenLocalFallback(token, tokenData) {
+    try {
+      // Cargar tokens existentes
+      let tokens = {};
+      const storedTokens = localStorage.getItem('machetero_access_tokens');
+      
+      if (storedTokens) {
+        tokens = JSON.parse(storedTokens);
+      }
+      
+      // Agregar o actualizar el token
+      tokens[token] = tokenData;
+      
+      // Guardar en localStorage
+      localStorage.setItem('machetero_access_tokens', JSON.stringify(tokens));
+      console.log('Token guardado en localStorage como fallback');
+    } catch (error) {
+      console.error('Error al guardar token en localStorage:', error);
+    }
+  }
+
+  // Verificar credenciales de administrador
   verifyAdmin(password) {
     this.isAdmin = (password === ADMIN_PASSWORD);
-      if (this.isAdmin) {
+    if (this.isAdmin) {
       // Almacenar estado de administrador en sessionStorage (se borra al cerrar pestaña)
       sessionStorage.setItem('machetero_admin', 'true');
       console.log('Acceso de administrador concedido');
       
-      // Asegurar que tenemos los tokens más recientes
-      this.tokens = this.loadTokens();
+      // Cargar tokens desde el servidor
+      this.loadTokensFromServer();
     }
     
     return this.isAdmin;
   }
+
   // Comprobar si el usuario es administrador
   checkAdminStatus() {
     // Verificar si ya está autenticado como admin en esta sesión
-    // Intentar primero con la nueva clave
     this.isAdmin = sessionStorage.getItem('machetero_admin') === 'true';
     
-    // Si no hay estado con la nueva clave, verificar la antigua y migrar
-    if (!this.isAdmin && sessionStorage.getItem('depechito_admin') === 'true') {
-      console.log('Encontrado estado de admin con clave antigua, migrando...');
-      sessionStorage.setItem('machetero_admin', 'true');
-      sessionStorage.removeItem('depechito_admin');
-      this.isAdmin = true;
-    }
-    
     if (this.isAdmin) {
-      // Si es administrador, recargar los tokens desde localStorage
-      this.tokens = this.loadTokens();
-      console.log('Estado de administrador verificado - tokens cargados');
+      console.log('Estado de administrador verificado');
+      // Si es administrador, cargar los tokens desde el servidor
+      this.loadTokensFromServer();
     }
     
     return this.isAdmin;
   }
   
   // Revocar un token específico
-  revokeToken(token) {
-    if (this.tokens[token]) {
-      delete this.tokens[token];
-      this.saveTokens();
-      return true;
+  async revokeToken(token) {
+    if (!this.isAdmin) {
+      console.error('Solo el administrador puede revocar tokens');
+      return false;
     }
-    return false;
+    
+    try {
+      console.log(`Revocando token en el servidor: ${token}`);
+      const response = await fetch(`${API_BASE_URL}/api/tokens/${token}?password=${ADMIN_PASSWORD}`, {
+        method: 'DELETE'
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`Error al revocar token: ${errorData.error || response.statusText}`);
+      }
+      
+      // Actualizar también en localStorage como fallback
+      this.revokeTokenLocalFallback(token);
+      
+      console.log('Token revocado correctamente');
+      return true;
+    } catch (error) {
+      console.error('Error al revocar token en el servidor:', error);
+      
+      // Si hay un error de conexión, intentar revocar localmente como fallback
+      return this.revokeTokenLocalFallback(token);
+    }
+  }
+
+  // Revocar token en localStorage como fallback
+  revokeTokenLocalFallback(token) {
+    try {
+      // Cargar tokens existentes
+      const storedTokens = localStorage.getItem('machetero_access_tokens');
+      if (!storedTokens) return false;
+      
+      const tokens = JSON.parse(storedTokens);
+      
+      // Verificar si el token existe
+      if (!tokens[token]) return false;
+      
+      // Eliminar el token
+      delete tokens[token];
+      
+      // Guardar en localStorage
+      localStorage.setItem('machetero_access_tokens', JSON.stringify(tokens));
+      console.log('Token revocado en localStorage como fallback');
+      return true;
+    } catch (error) {
+      console.error('Error al revocar token en localStorage:', error);
+      return false;
+    }
   }
   
   // Revocar todos los tokens
-  revokeAllTokens() {
-    this.tokens = {};
-    this.saveTokens();
-  }
-  
-  // Limpiar tokens expirados
-  cleanExpiredTokens() {
-    const now = new Date().getTime();
-    let changed = false;
+  async revokeAllTokens() {
+    if (!this.isAdmin) {
+      console.error('Solo el administrador puede revocar todos los tokens');
+      return false;
+    }
     
-    Object.keys(this.tokens).forEach(token => {
-      if (this.tokens[token].expiresAt && now > this.tokens[token].expiresAt) {
-        delete this.tokens[token];
-        changed = true;
+    try {
+      console.log('Revocando todos los tokens en el servidor');
+      const response = await fetch(`${API_BASE_URL}/api/tokens?password=${ADMIN_PASSWORD}`, {
+        method: 'DELETE'
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(`Error al revocar todos los tokens: ${errorData.error || response.statusText}`);
       }
-    });
-    
-    if (changed) {
-      this.saveTokens();
+      
+      // Actualizar también en localStorage como fallback
+      localStorage.setItem('machetero_access_tokens', '{}');
+      
+      console.log('Todos los tokens revocados correctamente');
+      return true;
+    } catch (error) {
+      console.error('Error al revocar todos los tokens en el servidor:', error);
+      
+      // Si hay un error de conexión, intentar revocar localmente como fallback
+      localStorage.setItem('machetero_access_tokens', '{}');
+      console.log('Todos los tokens revocados en localStorage como fallback');
+      return true;
     }
   }
   
   // Obtener todos los tokens activos (solo para admin)
-  getAllTokens() {
-    if (!this.isAdmin) return null;
+  async getAllTokens() {
+    if (!this.isAdmin) {
+      console.error('Solo el administrador puede obtener todos los tokens');
+      return null;
+    }
     
-    // Limpiar tokens expirados primero
-    this.cleanExpiredTokens();
-    
-    const result = {};
-    const now = new Date().getTime();
-    
-    Object.keys(this.tokens).forEach(token => {
-      const tokenData = this.tokens[token];
-      const remainingMs = tokenData.expiresAt - now;
-      const remainingHours = Math.max(0, Math.floor(remainingMs / (60 * 60 * 1000)));
-      const remainingMinutes = Math.max(0, Math.floor((remainingMs % (60 * 60 * 1000)) / (60 * 1000)));
-      
-      result[token] = {
-        ...tokenData,
-        remaining: `${remainingHours}h ${remainingMinutes}m`,
-        isExpired: now > tokenData.expiresAt,
-        createdAtFormatted: new Date(tokenData.createdAt).toLocaleString(),
-        expiresAtFormatted: new Date(tokenData.expiresAt).toLocaleString()
-      };
-    });
-    
-    return result;
-  }  // Método de diagnóstico para depurar problemas con tokens
-  diagnosticTokens() {
     try {
-      const storedDataNew = localStorage.getItem('machetero_access_tokens');
-      const storedDataOld = localStorage.getItem('depechito_access_tokens');
-      const memoryTokensCount = Object.keys(this.tokens).length;
-      let storedTokensCount = 0;
-      
-      console.log('== DIAGNÓSTICO DE TOKENS ==');
-      console.log('Tokens en memoria:', memoryTokensCount);
-      
-      // Mostrar tokens desde la nueva clave
-      if (storedDataNew) {
-        try {
-          const parsedData = JSON.parse(storedDataNew);
-          storedTokensCount = Object.keys(parsedData).length;
-          console.log('Tokens en localStorage (nueva clave):', storedTokensCount);
-          console.log('Lista de tokens (nueva clave):', Object.keys(parsedData));
-          
-          if (storedTokensCount !== memoryTokensCount) {
-            console.warn('¡Advertencia! Diferencia entre tokens en memoria y localStorage');
-          }
-          
-          // Verificar tokens expirados
-          const now = new Date().getTime();
-          let expiredCount = 0;
-          
-          Object.keys(parsedData).forEach(token => {
-            if (parsedData[token].expiresAt && now > parsedData[token].expiresAt) {
-              expiredCount++;
-            }
-          });
-          
-          console.log('Tokens expirados:', expiredCount);
-        } catch (e) {
-          console.error('Error al parsear datos de localStorage (nueva clave):', e);
-        }
-      } else {
-        console.log('No hay datos en localStorage (nueva clave)');
-      }
-      
-      // Verificar si hay datos en la clave antigua
-      if (storedDataOld) {
-        console.log('ATENCIÓN: Se encontraron tokens en la clave antigua de localStorage');
-        try {
-          const parsedOldData = JSON.parse(storedDataOld);
-          console.log('Tokens en localStorage (clave antigua):', Object.keys(parsedOldData).length);
-          console.log('Lista de tokens (clave antigua):', Object.keys(parsedOldData));
-          
-          // Migrar tokens antiguos a la nueva clave
-          console.log('Migrando tokens de clave antigua a nueva...');
-          localStorage.setItem('machetero_access_tokens', storedDataOld);
-          localStorage.removeItem('depechito_access_tokens');
-          
-          // Recargar tokens
-          this.tokens = JSON.parse(storedDataOld);
-          console.log('Tokens migrados y recargados en memoria');
-        } catch (e) {
-          console.error('Error al parsear datos de localStorage (clave antigua):', e);
-        }
-      }
-      
-      // Verificar token del usuario actual
-      const userToken = localStorage.getItem('machetero_user_token');
-      const oldUserToken = localStorage.getItem('depechito_user_token');
-      
-      if (userToken) {
-        console.log('Token de usuario actual (nueva clave):', userToken.substring(0, 5) + '...');
-        console.log('¿Es válido?', this.isValidToken(userToken));
-      } else if (oldUserToken) {
-        console.log('Token de usuario actual (clave antigua):', oldUserToken.substring(0, 5) + '...');
-        console.log('¿Es válido?', this.isValidToken(oldUserToken));
-        
-        // Migrar el token antiguo al nuevo
-        localStorage.setItem('machetero_user_token', oldUserToken);
-        localStorage.removeItem('depechito_user_token');
-        console.log('Token de usuario migrado a la nueva clave');
-      } else {
-        console.log('No hay token de usuario actual');
-      }
-      
-      // Verificar estado de administrador
-      console.log('Estado de administrador:', this.isAdmin);
-      console.log('sessionStorage admin (nueva clave):', sessionStorage.getItem('machetero_admin'));
-      console.log('sessionStorage admin (clave antigua):', sessionStorage.getItem('depechito_admin'));
-      
-      // Migrar estado de admin si es necesario
-      if (!sessionStorage.getItem('machetero_admin') && sessionStorage.getItem('depechito_admin') === 'true') {
-        sessionStorage.setItem('machetero_admin', 'true');
-        sessionStorage.removeItem('depechito_admin');
-        console.log('Estado de administrador migrado a la nueva clave');
-      }
-      
-      console.log('== FIN DIAGNÓSTICO ==');
-      
-      return {
-        memoryTokens: memoryTokensCount,
-        storedTokensNew: storedDataNew ? Object.keys(JSON.parse(storedDataNew)).length : 0,
-        storedTokensOld: storedDataOld ? Object.keys(JSON.parse(storedDataOld)).length : 0,
-        isAdmin: this.isAdmin,
-        userToken: userToken ? userToken.substring(0, 5) + '...' : (oldUserToken ? oldUserToken.substring(0, 5) + '...' : null),
-        userTokenValid: userToken ? this.isValidToken(userToken) : (oldUserToken ? this.isValidToken(oldUserToken) : false)
-      };
-    } catch (e) {
-      console.error('Error en diagnóstico:', e);
-      return { error: e.message };
+      // Cargar tokens frescos desde el servidor
+      const tokens = await this.loadTokensFromServer();
+      return tokens;
+    } catch (error) {
+      console.error('Error al obtener todos los tokens:', error);
+      return null;
     }
   }
-  
-  // Crear un token de prueba (solo para diagnóstico)
-  createTestToken() {
+
+  // Método de diagnóstico para depurar problemas con tokens
+  async diagnosticTokens() {
+    console.log('== DIAGNÓSTICO DE TOKENS ==');
+    
+    // 1. Verificar estado de administrador
+    console.log('¿Es administrador?', this.isAdmin);
+    
+    // 2. Intentar conectar con el servidor
     try {
-      const testToken = `test-${Math.random().toString(36).substring(2, 8)}-${Date.now().toString(36)}`;
-      const now = new Date();
-      const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000).getTime();
-      
-      console.log('Creando token de prueba:', testToken);
-      
-      // Guardar directamente en localStorage
-      let currentTokens = {};
-      try {
-        const stored = localStorage.getItem('machetero_access_tokens');
-        if (stored) {
-          currentTokens = JSON.parse(stored);
-        }
-      } catch (e) {
-        console.error('Error al leer tokens actuales:', e);
+      console.log('Verificando conexión con el servidor...');
+      const response = await fetch(`${API_BASE_URL}/ping`);
+      if (response.ok) {
+        console.log('Conexión exitosa con el servidor ✅');
+      } else {
+        console.error('Error al conectar con el servidor ❌');
       }
-      
-      // Añadir el token de prueba
-      currentTokens[testToken] = {
-        createdAt: now.getTime(),
-        expiresAt: expiresAt,
-        note: 'Token de prueba - Diagnóstico',
-        hours: 24
-      };
-      
-      // Guardar en localStorage
-      localStorage.setItem('machetero_access_tokens', JSON.stringify(currentTokens));
-      
-      // Recargar tokens en memoria
-      this.tokens = this.loadTokens();
-      
-      return {
-        token: testToken,
-        expiresAt: expiresAt,
-        success: testToken in this.tokens
-      };
-    } catch (e) {
-      console.error('Error al crear token de prueba:', e);
-      return { error: e.message };
+    } catch (error) {
+      console.error('No se pudo conectar con el servidor ❌:', error);
     }
+    
+    // 3. Verificar tokens en localStorage (fallback)
+    try {
+      const storedData = localStorage.getItem('machetero_access_tokens');
+      if (storedData) {
+        try {
+          const parsedData = JSON.parse(storedData);
+          const tokenCount = Object.keys(parsedData).length;
+          console.log('Tokens en localStorage (fallback):', tokenCount);
+          
+          if (tokenCount > 0) {
+            console.log('Lista de tokens en localStorage:', Object.keys(parsedData));
+            
+            // Verificar tokens expirados
+            const now = new Date().getTime();
+            let expiredCount = 0;
+            
+            Object.keys(parsedData).forEach(token => {
+              if (parsedData[token].expiresAt && now > parsedData[token].expiresAt) {
+                expiredCount++;
+              }
+            });
+            
+            if (expiredCount > 0) {
+              console.log(`Tokens expirados en localStorage: ${expiredCount}`);
+            }
+          }
+        } catch (e) {
+          console.error('Error al parsear datos de localStorage:', e);
+        }
+      } else {
+        console.log('No hay tokens en localStorage');
+      }
+    } catch (error) {
+      console.error('Error al acceder a localStorage:', error);
+    }
+    
+    // 4. Si es administrador, verificar tokens en el servidor
+    if (this.isAdmin) {
+      try {
+        console.log('Consultando tokens en el servidor...');
+        const serverTokens = await this.loadTokensFromServer();
+        console.log('Tokens en el servidor:', Object.keys(serverTokens).length);
+        
+        if (Object.keys(serverTokens).length > 0) {
+          console.log('Lista de tokens en el servidor:', Object.keys(serverTokens));
+        }
+      } catch (error) {
+        console.error('Error al consultar tokens en el servidor:', error);
+      }
+    }
+    
+    // 5. Verificar token de usuario actual
+    const userToken = localStorage.getItem('machetero_user_token');
+    if (userToken) {
+      console.log('Token de usuario actual:', userToken);
+      console.log('Validando token de usuario...');
+      
+      try {
+        const isValid = await this.isValidToken(userToken);
+        console.log('¿Token de usuario válido?', isValid ? '✅ Sí' : '❌ No');
+      } catch (error) {
+        console.error('Error al validar token de usuario:', error);
+      }
+    } else {
+      console.log('No hay token de usuario almacenado');
+    }
+    
+    console.log('== FIN DIAGNÓSTICO ==');
   }
 }
 
@@ -413,9 +455,27 @@ const accessManager = new AccessManager();
 
 // Crear UI para login
 function createLoginUI() {
+  console.log('Creando interfaz de login');
+  
+  // Eliminar cualquier login overlay existente
+  const existingOverlay = document.querySelector('.login-overlay');
+  if (existingOverlay) {
+    existingOverlay.remove();
+  }
+  
   // Contenedor principal con overlay
   const loginOverlay = document.createElement('div');
   loginOverlay.className = 'login-overlay';
+  loginOverlay.style.position = 'fixed';
+  loginOverlay.style.top = '0';
+  loginOverlay.style.left = '0';
+  loginOverlay.style.width = '100%';
+  loginOverlay.style.height = '100%';
+  loginOverlay.style.backgroundColor = 'rgba(0,0,0,0.8)';
+  loginOverlay.style.zIndex = '9999';
+  loginOverlay.style.display = 'flex';
+  loginOverlay.style.justifyContent = 'center';
+  loginOverlay.style.alignItems = 'center';
   
   // Contenedor del formulario
   const loginContainer = document.createElement('div');
@@ -455,6 +515,9 @@ function createLoginUI() {
   // Añadir al body
   document.body.appendChild(loginOverlay);
   
+  // Verificar que se añadió correctamente
+  console.log('Overlay de login añadido:', document.querySelector('.login-overlay') !== null);
+  
   // Configurar eventos para las pestañas
   const tabBtns = document.querySelectorAll('.tab-btn');
   tabBtns.forEach(btn => {
@@ -467,9 +530,8 @@ function createLoginUI() {
       btn.classList.add('active');
       document.getElementById(`${btn.dataset.tab}-tab`).classList.add('active');
     });
-  });
-  // Evento para validar token
-  document.getElementById('validate-token').addEventListener('click', () => {
+  });// Evento para validar token
+  document.getElementById('validate-token').addEventListener('click', async () => {
     const token = document.getElementById('access-token').value.trim();
     const messageEl = document.getElementById('token-message');
     
@@ -480,48 +542,34 @@ function createLoginUI() {
     }
     
     console.log(`Intentando validar token: ${token}`);
+    messageEl.textContent = 'Validando código...';
+    messageEl.className = 'message';
     
-    // Forzar la recarga de tokens desde localStorage antes de validar
-    accessManager.tokens = accessManager.loadTokens();
-    console.log(`Total tokens cargados para validación: ${Object.keys(accessManager.tokens).length}`);
-    
-    // Verificar si el token es válido con diagnóstico detallado
-    const tokenExists = token in accessManager.tokens;
-    console.log(`¿El token existe en la lista?: ${tokenExists ? 'SÍ' : 'NO'}`);
-    
-    if (tokenExists) {
-      const tokenData = accessManager.tokens[token];
-      const now = new Date().getTime();
-      const isExpired = tokenData.expiresAt && now > tokenData.expiresAt;
-      console.log(`¿El token ha expirado?: ${isExpired ? 'SÍ' : 'NO'}`);
+    try {
+      // Validar el token con el servidor
+      const isValid = await accessManager.isValidToken(token);
       
-      if (isExpired) {
-        console.log('Token expirado - rechazando acceso');
-        messageEl.textContent = 'Código expirado. Por favor solicita uno nuevo.';
+      if (isValid) {
+        // Token válido, guardar en localStorage y recargar
+        localStorage.setItem('machetero_user_token', token);
+        
+        messageEl.textContent = 'Código válido. Accediendo...';
+        messageEl.className = 'message success';
+        
+        console.log('Acceso concedido con token válido');
+        setTimeout(() => window.location.reload(), 1000);
+      } else {
+        console.log('Token inválido o expirado');
+        messageEl.textContent = 'Código inválido o expirado. Por favor verifica e intenta nuevamente.';
         messageEl.className = 'message error';
-        return;
+        
+        // Ejecutar diagnóstico
+        accessManager.diagnosticTokens();
       }
-    }
-    
-    if (accessManager.isValidToken(token)) {
-      // Token válido, guardar en localStorage y recargar
-      localStorage.setItem('machetero_user_token', token);
-      // Eliminar el token antiguo si existe
-      localStorage.removeItem('depechito_user_token');
-      
-      messageEl.textContent = 'Código válido. Accediendo...';
-      messageEl.className = 'message success';
-      
-      console.log('Acceso concedido con token válido');
-      setTimeout(() => window.location.reload(), 1000);
-    } else {
-      console.log('Token inválido o expirado');
-      messageEl.textContent = 'Código inválido o expirado. Por favor verifica e intenta nuevamente.';
+    } catch (error) {
+      console.error('Error al validar token:', error);
+      messageEl.textContent = 'Error al validar código. Por favor intenta nuevamente.';
       messageEl.className = 'message error';
-      
-      // Diagnóstico del problema
-      const diagnosis = accessManager.diagnosticTokens();
-      console.log('Diagnóstico de tokens:', diagnosis);
     }
   });
   
@@ -616,46 +664,69 @@ function createAdminPanel() {
   adminBtn.innerHTML = '<i class="fas fa-user-shield"></i>';
   adminBtn.title = 'Panel de Administrador';
   document.body.appendChild(adminBtn);
-    // Evento para abrir panel
+  // Evento para abrir panel
   adminBtn.addEventListener('click', () => {
     adminPanel.classList.add('open');
     
-    // Recargar los tokens desde localStorage antes de mostrar la lista
-    accessManager.tokens = accessManager.loadTokens();
-    
-    // Actualizar la lista de tokens
-    refreshTokensList();
+    // Recargar los tokens desde el servidor antes de mostrar la lista
+    accessManager.loadTokensFromServer().then(() => {
+      // Actualizar la lista de tokens
+      refreshTokensList();
+    });
   });
   
   // Evento para cerrar panel
   document.getElementById('close-admin').addEventListener('click', () => {
     adminPanel.classList.remove('open');
-  });
-    // Generar token
-  document.getElementById('generate-token').addEventListener('click', () => {
+  });  // Generar token
+  document.getElementById('generate-token').addEventListener('click', async () => {
     const hours = parseInt(document.getElementById('token-hours').value) || 24;
     const note = document.getElementById('token-note').value.trim();
     
-    const { token, expiresAt } = accessManager.generateToken(hours, note);
-    
-    // Mostrar el token generado
-    document.getElementById('new-token').textContent = token;
-    document.getElementById('token-expires').textContent = new Date(expiresAt).toLocaleString();
-    document.getElementById('new-token-container').classList.remove('hidden');
-    
-    // Actualizar lista de tokens
-    refreshTokensList();
-    
-    // Mostrar confirmación
+    // Mostrar estado de carga
     const generateBtn = document.getElementById('generate-token');
     const originalText = generateBtn.textContent;
-    generateBtn.textContent = '✓ Código generado';
-    generateBtn.classList.add('success');
+    generateBtn.textContent = 'Generando...';
+    generateBtn.disabled = true;
     
-    setTimeout(() => {
-      generateBtn.textContent = originalText;
-      generateBtn.classList.remove('success');
-    }, 2000);
+    try {
+      // Usar la versión asíncrona para generar token
+      const result = await accessManager.generateToken(hours, note);
+      
+      if (!result) {
+        throw new Error('Error al generar el token');
+      }
+      
+      const { token, expiresAt } = result;
+      
+      // Mostrar el token generado
+      document.getElementById('new-token').textContent = token;
+      document.getElementById('token-expires').textContent = new Date(expiresAt).toLocaleString();
+      document.getElementById('new-token-container').classList.remove('hidden');
+      
+      // Actualizar lista de tokens
+      refreshTokensList();
+      
+      // Mostrar confirmación
+      generateBtn.textContent = '✓ Código generado';
+      generateBtn.classList.add('success');
+    } catch (error) {
+      console.error('Error al generar token:', error);
+      
+      // Mostrar error
+      generateBtn.textContent = '❌ Error al generar';
+      generateBtn.classList.add('error');
+      
+      // Alerta de error
+      alert('Error al generar el código. Por favor intenta nuevamente.');
+    } finally {
+      // Restaurar estado del botón después de un tiempo
+      setTimeout(() => {
+        generateBtn.textContent = originalText;
+        generateBtn.classList.remove('success', 'error');
+        generateBtn.disabled = false;
+      }, 2000);
+    }
   });
   
   // Copiar token
@@ -704,208 +775,467 @@ function createAdminPanel() {
   
   // Refrescar lista de tokens
   document.getElementById('refresh-tokens').addEventListener('click', refreshTokensList);
-  
-  // Revocar todos los tokens
-  document.getElementById('revoke-all').addEventListener('click', () => {
+    // Revocar todos los tokens
+  document.getElementById('revoke-all').addEventListener('click', async () => {
     if (confirm('¿Estás seguro de que quieres revocar todos los códigos de acceso?')) {
-      accessManager.revokeAllTokens();
-      refreshTokensList();
-      alert('Todos los códigos han sido revocados.');
+      try {
+        // Mostrar estado de carga
+        const revokeBtn = document.getElementById('revoke-all');
+        const originalText = revokeBtn.textContent;
+        revokeBtn.textContent = 'Revocando...';
+        revokeBtn.disabled = true;
+        
+        // Usar la versión asíncrona
+        const success = await accessManager.revokeAllTokens();
+        
+        if (success) {
+          refreshTokensList();
+          alert('Todos los códigos han sido revocados.');
+        } else {
+          throw new Error('Error al revocar tokens');
+        }
+      } catch (error) {
+        console.error('Error al revocar todos los tokens:', error);
+        alert('Error al revocar los códigos. Por favor intenta nuevamente.');
+      } finally {
+        // Restaurar estado del botón
+        const revokeBtn = document.getElementById('revoke-all');
+        revokeBtn.textContent = 'Revocar todos los códigos';
+        revokeBtn.disabled = false;
+      }
     }
-  });
-  // Cerrar sesión de administrador
+  });  // Cerrar sesión de administrador
   document.getElementById('admin-logout').addEventListener('click', () => {
-    // Guardar los tokens actuales en localStorage antes de cerrar sesión
-    accessManager.saveTokens();
-    
     // Quitar estado de administrador
     sessionStorage.removeItem('machetero_admin');
     
-    alert('Has cerrado sesión como administrador. Los códigos generados se han guardado correctamente.');
+    alert('Has cerrado sesión como administrador.');
     
     // Recargar la página
     window.location.reload();
-  });
-    // Función para actualizar la lista de tokens
-  function refreshTokensList() {
+  });  // Función para actualizar la lista de tokens
+  async function refreshTokensList() {
     const tokensList = document.getElementById('tokens-list');
     
-    // Recargar tokens desde localStorage para asegurar sincronización
-    accessManager.tokens = accessManager.loadTokens();
+    // Mostrar indicador de carga
+    tokensList.innerHTML = '<p>Cargando códigos...</p>';
     
-    // Limpiar tokens expirados
-    accessManager.cleanExpiredTokens();
+    try {
+      // Obtener tokens actualizados desde el servidor
+      const tokens = await accessManager.getAllTokens();
+      
+      if (!tokens || Object.keys(tokens).length === 0) {
+        tokensList.innerHTML = '<p>No hay códigos activos.</p>';
+        return;
+      }
+      
+      let html = '';
+      Object.keys(tokens).forEach(token => {
+        const data = tokens[token];
+        html += `
+          <div class="token-item">
+            <div class="token-info">
+              <div class="token-code">${token}</div>
+              <div class="token-details">
+                ${data.note ? `<span class="token-note">${data.note}</span>` : ''}
+                <span class="token-time">Expira: ${data.remaining} (${data.expiresAtFormatted})</span>
+              </div>
+            </div>
+            <button class="revoke-btn" data-token="${token}">
+              <i class="fas fa-trash"></i>
+            </button>
+          </div>
+        `;
+      });
+      
+      tokensList.innerHTML = html;
+      
+      // Añadir eventos para revocar tokens individuales
+      document.querySelectorAll('.revoke-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const token = btn.dataset.token;
+          if (confirm('¿Revocar este código de acceso?')) {
+            try {
+              // Desactivar botón y mostrar estado
+              btn.disabled = true;
+              btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+              
+              // Usar la versión asíncrona
+              const success = await accessManager.revokeToken(token);
+              
+              if (success) {
+                // Actualizar la lista de tokens
+                refreshTokensList();
+              } else {
+                throw new Error('Error al revocar token');
+              }
+            } catch (error) {
+              console.error('Error al revocar token:', error);
+              alert('Error al revocar el código. Por favor intenta nuevamente.');
+              
+              // Restaurar botón
+              btn.disabled = false;
+              btn.innerHTML = '<i class="fas fa-trash"></i>';
+            }
+          }
+        });
+      });
+      
+      // Mostrar mensaje de actualización
+      const refreshBtn = document.getElementById('refresh-tokens');
+      const originalHTML = refreshBtn.innerHTML;
+      refreshBtn.innerHTML = '<i class="fas fa-check"></i> Actualizado';
+      setTimeout(() => {
+        refreshBtn.innerHTML = originalHTML;
+      }, 1500);
+    } catch (error) {
+      console.error('Error al cargar tokens:', error);
+      tokensList.innerHTML = '<p>Error al cargar códigos. <button id="retry-load">Reintentar</button></p>';
+      
+      // Añadir evento para reintentar
+      document.getElementById('retry-load')?.addEventListener('click', refreshTokensList);
+    }
+  }
+}
+
+// Función para permitir acceso al contenido
+function showMainContent() {
+  console.log('=== MOSTRANDO CONTENIDO PRINCIPAL ===');
+  
+  // Asegurar que todos los elementos principales sean visibles
+  const header = document.querySelector('header');
+  const container = document.querySelector('.container');
+  const footer = document.querySelector('footer');
+  
+  if (header) {
+    header.style.display = 'block';
+    console.log('Header visible');
+  }
+  
+  if (container) {
+    container.style.display = 'flex'; // Importante: container debe ser flex para el layout
+    console.log('Container visible (flex)');
+  }
+  
+  if (footer) {
+    footer.style.display = 'block';
+    console.log('Footer visible');
+  }
+  
+  // Implementación directa para cargar los canales básicos (sin depender de scripts.js)
+  console.log('Implementando carga directa de canales');
+    // Función auxiliar para mostrar mensaje de error de canal (definida antes para evitar problemas de referencia)
+  function mostrarMensajeErrorCanal(nombreCanal) {
+    const playerContainer = document.querySelector('.video-player');
+    if (playerContainer) {
+      // Limpiar contenedor
+      const existingMessages = playerContainer.querySelectorAll('.welcome-message, .demo-message');
+      existingMessages.forEach(el => el.remove());
+      
+      // Añadir mensaje
+      const welcomeMsg = document.createElement('div');
+      welcomeMsg.className = 'welcome-message';
+      welcomeMsg.innerHTML = `
+        <h3>Canal seleccionado: ${nombreCanal}</h3>
+        <p>La función de reproducción no está disponible en este momento.</p>
+        <p>Intenta recargar la página o selecciona otro canal.</p>
+      `;
+      playerContainer.appendChild(welcomeMsg);
+    }
+  }
+  
+  // Referencia directa al contenedor de canales
+  const channelList = document.getElementById('channel-list');
+    if (channelList) {
+    // Obtener todos los canales disponibles desde LOGOS en scripts.js
+    let allChannels = [];
     
-    const tokens = accessManager.getAllTokens();
-    
-    if (!tokens || Object.keys(tokens).length === 0) {
-      tokensList.innerHTML = '<p>No hay códigos activos.</p>';
-      return;
+    // Intentar obtener los canales desde el objeto LOGOS en window
+    if (typeof window.LOGOS !== 'undefined') {
+      console.log('Usando canales desde window.LOGOS');
+      allChannels = Object.keys(window.LOGOS);
     }
     
-    let html = '';
-    Object.keys(tokens).forEach(token => {
-      const data = tokens[token];
-      html += `
-        <div class="token-item">
-          <div class="token-info">
-            <div class="token-code">${token}</div>
-            <div class="token-details">
-              ${data.note ? `<span class="token-note">${data.note}</span>` : ''}
-              <span class="token-time">Expira: ${data.remaining} (${data.expiresAtFormatted})</span>
-            </div>
-          </div>
-          <button class="revoke-btn" data-token="${token}">
-            <i class="fas fa-trash"></i>
-          </button>
-        </div>
+    // Si no hay canales disponibles en window.LOGOS, usar lista completa directamente
+    if (allChannels.length === 0) {
+      console.log('Usando lista completa de canales definida localmente');
+      allChannels = [
+        "DIRECTV Sports HD",
+        "DIRECTV Sports 2 HD", 
+        "Movistar Deportes",
+        "ESPN Premium",
+        "ESPN",
+        "ESPN2",
+        "ESPN3",
+        "ESPN4",
+        "ESPN5",
+        "ESPN6",
+        "ESPN7",
+        "Liga 1 Max",
+        "Gol Perú",
+        "DirecTV Plus",
+        "FOX Sports",
+        "TyC Sports",
+        "NASA TV Public",
+        "Red Bull TV"
+      ];
+    }
+      console.log('Cargando lista completa de canales:', allChannels.length, 'canales');
+    
+    // Limpiar lista existente
+    channelList.innerHTML = '';
+    
+    // Asegurar que la lista de canales sea visible
+    channelList.style.display = 'block';
+      // Agregar todos los canales disponibles
+    allChannels.forEach(name => {
+      const item = document.createElement('li');
+      
+      // Crear contenido más visual para cada canal
+      item.innerHTML = `
+        <img src="img/channel-icon.png" alt="${name}" class="channel-logo-small" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22><text y=%22.9em%22 font-size=%2224%22>📺</text></svg>'">
+        <span>${name}</span>
       `;
-    });
-    
-    tokensList.innerHTML = html;
-    
-    // Añadir eventos para revocar tokens individuales
-    document.querySelectorAll('.revoke-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const token = btn.dataset.token;
-        if (confirm('¿Revocar este código de acceso?')) {
-          accessManager.revokeToken(token);
-          refreshTokensList();
+      
+      // Agregar clase especial para canales de demostración
+      if (name === 'NASA TV Public' || name === 'Red Bull TV') {
+        item.classList.add('demo-channel');
+      }
+      
+      // Añadir evento de clic (simplificado)
+      item.addEventListener('click', () => {
+        // Marcar como activo
+        document.querySelectorAll('#channel-list li').forEach(li => li.classList.remove('active'));
+        item.classList.add('active');
+        
+        console.log('Canal seleccionado:', name);
+        document.getElementById('channel-title').textContent = name;
+          // Intentar cargar canal usando la función de scripts.js si está disponible
+        if (typeof window.loadChannel === 'function') {
+          try {
+            window.loadChannel(name);
+            console.log('Canal cargado usando función loadChannel de scripts.js');
+          } catch (error) {
+            console.error('Error al cargar canal con scripts.js:', error);
+            mostrarMensajeErrorCanal(name);
+          }
+        } else {
+          console.log('Función loadChannel no disponible, mostrando mensaje alternativo');
+          mostrarMensajeErrorCanal(name);
         }
       });
+      
+      channelList.appendChild(item);
     });
+      console.log('Lista básica de canales cargada con éxito');
     
-    // Mostrar mensaje de actualización
-    const refreshBtn = document.getElementById('refresh-tokens');
-    const originalHTML = refreshBtn.innerHTML;
-    refreshBtn.innerHTML = '<i class="fas fa-check"></i> Actualizado';
+    // Configurar el filtro de búsqueda simple
+    const searchInput = document.getElementById('search');
+    if (searchInput) {
+      searchInput.addEventListener('input', () => {
+        const query = searchInput.value.toLowerCase();
+        const items = document.querySelectorAll('#channel-list li');
+        
+        items.forEach(item => {
+          const text = item.textContent.toLowerCase();
+          item.style.display = text.includes(query) ? 'flex' : 'none';
+        });
+      });
+      console.log('Filtro de búsqueda configurado');
+    }
+    
+    // Seleccionar un canal automáticamente
     setTimeout(() => {
-      refreshBtn.innerHTML = originalHTML;
-    }, 1500);  }
+      if (channelList.children.length > 0) {
+        console.log('Seleccionando canal inicial...');
+        // Intentar encontrar un canal de demostración
+        const demoChannel = Array.from(channelList.children).find(li => 
+          li.textContent.includes("NASA TV Public") || li.textContent.includes("Red Bull TV")
+        );
+        
+        if (demoChannel) {
+          console.log('Canal de demostración encontrado, seleccionando:', demoChannel.textContent.trim());
+          demoChannel.click();
+        } else if (channelList.firstElementChild) {
+          console.log('Seleccionando primer canal disponible');
+          channelList.firstElementChild.click();
+        }
+      }
+    }, 500);
+  } else {
+    console.error('No se encontró el elemento #channel-list en el DOM');
+  }
+  
+  console.log('Contenido principal mostrado - acceso autorizado');
 }
 
 // Verificar acceso cuando se carga la página
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
   console.log('=== VERIFICACIÓN DE ACCESO ===');
   
-  // Comprobar primero si el usuario es administrador
-  const isAdmin = accessManager.checkAdminStatus();
-  console.log('¿Es administrador?', isAdmin);
+  // IMPORTANTE: Ocultar SIEMPRE el contenido principal al inicio, sin excepciones
+  const header = document.querySelector('header');
+  const container = document.querySelector('.container');
+  const footer = document.querySelector('footer');
   
-  if (isAdmin) {
-    console.log('Acceso como administrador - creando panel de administrador');
-    createAdminPanel();
-    return; // El admin siempre tiene acceso
-  }
+  if (header) header.style.display = 'none';
+  if (container) container.style.display = 'none';
+  if (footer) footer.style.display = 'none';
   
-  // Verificar si hay un token de usuario almacenado
-  // Intentar primero con la nueva clave
-  let userToken = localStorage.getItem('machetero_user_token');
-  console.log('Token de usuario (nueva clave):', userToken ? `${userToken.substring(0, 10)}...` : 'No existe');
+  console.log('Contenido principal oculto hasta verificar acceso');
   
-  // Si no hay token con la nueva clave, verificar la antigua y migrar si existe
-  if (!userToken) {
-    const oldToken = localStorage.getItem('depechito_user_token');
-    if (oldToken) {
-      console.log('Encontrado token de usuario con clave antigua, migrando...');
-      localStorage.setItem('machetero_user_token', oldToken);
-      localStorage.removeItem('depechito_user_token');
-      userToken = oldToken;
+  try {
+    // Comprobar primero si el usuario es administrador
+    const isAdmin = accessManager.checkAdminStatus();
+    console.log('¿Es administrador?', isAdmin);
+    
+    if (isAdmin) {
+      console.log('Acceso como administrador - creando panel de administrador');
+      createAdminPanel();
+      
+      // Mostrar el contenido principal para el administrador
+      showMainContent();
+      
+      return; // El admin siempre tiene acceso
     }
+    
+    // Verificar si hay un token de usuario almacenado
+    let userToken = localStorage.getItem('machetero_user_token');
+    console.log('Token de usuario:', userToken ? `${userToken.substring(0, 10)}...` : 'No existe');
+    
+    let isValidToken = false;
+    
+    if (userToken) {
+      try {
+        // Validar el token con el servidor
+        console.log('Validando token con el servidor...');
+        isValidToken = await accessManager.isValidToken(userToken);
+        console.log('¿Token válido?', isValidToken);
+        
+        if (!isValidToken) {
+          console.log('Token inválido o expirado - eliminando del localStorage');
+          localStorage.removeItem('machetero_user_token');
+        }
+      } catch (error) {
+        console.error('Error al validar token:', error);
+        localStorage.removeItem('machetero_user_token');
+        isValidToken = false;
+      }
+    }
+    
+    if (isValidToken) {
+      // Token válido, permitir acceso
+      console.log('Acceso concedido con token válido');
+      
+      // Mostrar el contenido principal
+      showMainContent();
+    } else {
+      // Sin token válido, mostrar pantalla de login
+      console.log('No hay token válido - mostrando pantalla de login');
+      createLoginUI();
+      
+      // El contenido principal permanece oculto
+      console.log('Contenido principal mantenido oculto - se requiere autenticación');
+      
+      // Ejecutar diagnóstico para depurar problemas
+      await accessManager.diagnosticTokens();
+    }
+  } catch (error) {
+    console.error('Error en verificación de acceso:', error);
+    
+    // En caso de error, mostrar pantalla de login por seguridad
+    createLoginUI();
+    
+    // Mantener el contenido principal oculto
+    if (header) header.style.display = 'none';
+    if (container) container.style.display = 'none';
+    if (footer) footer.style.display = 'none';
+    
+    console.log('Error en la verificación - mostrando login por seguridad');
   }
-  
-  // Forzar recarga de tokens desde localStorage antes de validar
-  console.log('Recargando tokens desde localStorage para validación...');
-  accessManager.tokens = accessManager.loadTokens();
-  
-  // Validar el token de usuario
-  const isValidToken = userToken && accessManager.isValidToken(userToken);
-  console.log('¿Token válido?', isValidToken);
-  
-  if (isValidToken) {
-    console.log('Acceso concedido con token válido');
-    return; // Token válido, permitir acceso
-  }
-  
-  // Si llegamos aquí, no hay token válido - mostrar pantalla de login
-  console.log('No hay token válido o está expirado - mostrando pantalla de login');
-  createLoginUI();
-  
-  // Ocultar el contenido principal
-  document.querySelector('header').style.display = 'none';
-  document.querySelector('.container').style.display = 'none';
-  document.querySelector('footer').style.display = 'none';
   
   console.log('=== FIN VERIFICACIÓN DE ACCESO ===');
 });
 
-// Ejecutar diagnóstico
-document.getElementById('run-diagnostic').addEventListener('click', () => {
-  // Recargar tokens desde localStorage antes de diagnosticar
-  accessManager.tokens = accessManager.loadTokens();
+// Ejecutar diagnóstico al hacer clic en el botón
+document.addEventListener('click', async function(event) {
+  if (event.target.id === 'run-diagnostic' || event.target.closest('#run-diagnostic')) {
+    try {
+      // Mostrar que estamos ejecutando el diagnóstico
+      const diagnosticBtn = document.getElementById('run-diagnostic');
+      if (!diagnosticBtn) return;
+      
+      const originalText = diagnosticBtn.textContent;
+      diagnosticBtn.textContent = 'Ejecutando diagnóstico...';
+      diagnosticBtn.disabled = true;
+      
+      // Ejecutar diagnóstico completo
+      await accessManager.diagnosticTokens();
+      
+      // Crear un token de prueba para probar entre dispositivos
+      const randomCode = Math.random().toString(36).substring(2, 7).toUpperCase();
+      const testToken = `TEST-${randomCode}`;
+      const now = new Date();
+      const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000).getTime();
+      
+      console.log('Creando token de prueba para diagnóstico:', testToken);
+      
+      // Guardar el token de prueba en el servidor
+      await accessManager.generateToken(24, 'Token de prueba - Diagnóstico');
+      
+      // Verificar conexión con el servidor
+      let serverStatus = 'Desconocido';
+      try {
+        const response = await fetch(`${API_BASE_URL}/ping`);
+        serverStatus = response.ok ? 'Conectado ✅' : 'Error de conexión ❌';
+      } catch (error) {
+        serverStatus = 'No se pudo conectar ❌';
+      }
+      
+      // Validar el token recién creado
+      let tokenValid = false;
+      try {
+        tokenValid = await accessManager.isValidToken(testToken);
+      } catch (error) {
+        console.error('Error al validar token de prueba:', error);
+      }
+      
+      // Mostrar resultados del diagnóstico
+      alert(`Diagnóstico completado:
   
-  // Ejecutar diagnóstico
-  const diagnosis = accessManager.diagnosticTokens();
+  Servidor: ${serverStatus}
+  Estado de admin: ${accessManager.isAdmin ? 'Sí ✅' : 'No ❌'}
   
-  // Crear un token de prueba especialmente formateado para facilitar la escritura manual
-  const randomCode = Math.random().toString(36).substring(2, 7).toUpperCase();
-  const testToken = `TEST-${randomCode}`;
-  const now = new Date();
-  const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000).getTime();
+  ===== PRUEBA ENTRE DISPOSITIVOS =====
+  Se ha creado un token de prueba: ${testToken}
+  Este token expira en: ${new Date(expiresAt).toLocaleString()}
   
-  console.log('Creando token de prueba para diagnóstico:', testToken);
+  INSTRUCCIONES:
+  1. Copia este código: ${testToken}
+  2. Intenta acceder desde otro dispositivo o navegador
+  3. Si funciona, el sistema está correcto
+  4. Si no funciona, revisa la consola para más detalles
   
-  // Guardar directamente en localStorage
-  let currentTokens = {};
-  try {
-    const stored = localStorage.getItem('machetero_access_tokens');
-    if (stored) {
-      currentTokens = JSON.parse(stored);
+  Ver consola para información detallada.`);
+      
+      // Actualizar la lista de tokens tras el diagnóstico
+      if (typeof refreshTokensList === 'function') {
+        refreshTokensList();
+      } else {
+        // Si no está disponible la función, recargar la página
+        console.log('Función refreshTokensList no disponible, recargando página...');
+        setTimeout(() => window.location.reload(), 1000);
+      }
+    } catch (error) {
+      console.error('Error en diagnóstico:', error);
+      alert('Error al ejecutar diagnóstico. Por favor revisa la consola para más detalles.');
+    } finally {
+      // Restaurar estado del botón
+      const diagnosticBtn = document.getElementById('run-diagnostic');
+      if (diagnosticBtn) {
+        diagnosticBtn.textContent = 'Ejecutar diagnóstico';
+        diagnosticBtn.disabled = false;
+      }
     }
-  } catch (e) {
-    console.error('Error al leer tokens actuales:', e);
   }
-  
-  // Añadir el token de prueba
-  currentTokens[testToken] = {
-    createdAt: now.getTime(),
-    expiresAt: expiresAt,
-    note: 'Token de prueba - Diagnóstico',
-    hours: 24
-  };
-  
-  // Guardar en localStorage
-  localStorage.setItem('machetero_access_tokens', JSON.stringify(currentTokens));
-  
-  // Recargar tokens en memoria
-  accessManager.tokens = accessManager.loadTokens();
-  
-  // Verificar si el token fue guardado correctamente
-  const tokenSaved = accessManager.isValidToken(testToken);
-  
-  // Mostrar resultados del diagnóstico
-  alert(`Diagnóstico completado:
-- Tokens en memoria: ${diagnosis.memoryTokens}
-- Tokens en localStorage (nueva clave): ${diagnosis.storedTokensNew}
-- Tokens en localStorage (clave antigua): ${diagnosis.storedTokensOld}
-- Token de usuario: ${diagnosis.userToken || 'No hay'}
-- Token válido: ${diagnosis.userTokenValid ? 'Sí' : 'No'}
-- Es admin: ${diagnosis.isAdmin ? 'Sí' : 'No'}
-
-===== PRUEBA ENTRE DISPOSITIVOS =====
-Se ha creado un token de prueba: ${testToken}
-Este token expira en: ${new Date(expiresAt).toLocaleString()}
-
-¿El token se guardó correctamente? ${tokenSaved ? 'SÍ' : 'NO'}
-
-INSTRUCCIONES:
-1. Copia este código: ${testToken}
-2. Intenta acceder desde otro dispositivo o navegador
-3. Si funciona, el sistema está correcto
-4. Si no funciona, revisa la consola para más detalles
-
-Ver consola para información detallada.`);
-  
-  // Actualizar la lista de tokens tras el diagnóstico
-  refreshTokensList();
 });

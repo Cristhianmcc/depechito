@@ -8,6 +8,7 @@ const cheerio = require('cheerio');
 const cors = require('cors');
 const https = require('https');
 const path = require('path');
+const fs = require('fs');
 
 // Configuración del servidor
 const PORT = process.env.PORT || 4000;
@@ -17,10 +18,61 @@ const app = express();
 // Habilitar CORS para todas las rutas
 app.use(cors());
 
+// Permitir el procesamiento de JSON en el cuerpo de las peticiones
+app.use(express.json());
+
 // Agente HTTPS que ignora errores de certificado SSL
 const httpsAgent = new https.Agent({
   rejectUnauthorized: false
 });
+
+// Configuración para la gestión de tokens
+const TOKEN_FILE = path.join(__dirname, 'tokens.json');
+
+// Función para cargar los tokens desde el archivo
+function loadTokens() {
+  try {
+    if (fs.existsSync(TOKEN_FILE)) {
+      const data = fs.readFileSync(TOKEN_FILE, 'utf8');
+      return JSON.parse(data);
+    }
+    return {};
+  } catch (error) {
+    console.error('Error al cargar tokens desde el archivo:', error);
+    return {};
+  }
+}
+
+// Función para guardar los tokens en el archivo
+function saveTokens(tokens) {
+  try {
+    fs.writeFileSync(TOKEN_FILE, JSON.stringify(tokens, null, 2), 'utf8');
+    return true;
+  } catch (error) {
+    console.error('Error al guardar tokens en el archivo:', error);
+    return false;
+  }
+}
+
+// Función para limpiar tokens expirados
+function cleanExpiredTokens() {
+  const tokens = loadTokens();
+  const now = new Date().getTime();
+  let changed = false;
+  
+  Object.keys(tokens).forEach(token => {
+    if (tokens[token].expiresAt && now > tokens[token].expiresAt) {
+      delete tokens[token];
+      changed = true;
+    }
+  });
+  
+  if (changed) {
+    saveTokens(tokens);
+  }
+  
+  return tokens;
+}
 
 // URL directa de DirecTV Sports (actualizada manualmente cuando sea necesario)
 const DSPORTS_DIRECT_LINKS = {
@@ -494,6 +546,178 @@ app.get('/api/config', (req, res) => {
     environment: process.env.NODE_ENV || 'development',
     timestamp: new Date().toISOString()
   });
+});
+
+// ==================== API DE TOKENS ====================
+
+// Endpoint para guardar un nuevo token
+app.post('/api/tokens', (req, res) => {
+  const { token, expiresAt, note, hours, password } = req.body;
+  
+  // Verificar autenticación (contraseña de administrador)
+  if (password !== "micausagufy1") {
+    return res.status(401).json({ error: 'No autorizado' });
+  }
+  
+  if (!token) {
+    return res.status(400).json({ error: 'Token no proporcionado' });
+  }
+  
+  // Cargar tokens actuales, limpiar expirados
+  const tokens = cleanExpiredTokens();
+  
+  // Agregar el nuevo token
+  tokens[token] = {
+    createdAt: new Date().getTime(),
+    expiresAt: expiresAt || (new Date().getTime() + (hours || 24) * 60 * 60 * 1000),
+    note: note || "",
+    hours: hours || 24
+  };
+  
+  // Guardar tokens
+  if (saveTokens(tokens)) {
+    console.log(`Nuevo token guardado en el servidor: ${token}`);
+    res.status(201).json({ success: true, token, expiresAt: tokens[token].expiresAt });
+  } else {
+    res.status(500).json({ error: 'Error al guardar el token' });
+  }
+});
+
+// Endpoint para validar un token
+app.get('/api/tokens/validate/:token', (req, res) => {
+  const token = req.params.token;
+  
+  console.log(`Solicitud de validación de token: ${token}`);
+  
+  if (!token) {
+    console.log('Token no proporcionado en la solicitud');
+    return res.status(400).json({ valid: false, error: 'Token no proporcionado' });
+  }
+  
+  // Cargar tokens actuales, limpiar expirados
+  const tokens = cleanExpiredTokens();
+  console.log(`Total de tokens en el servidor: ${Object.keys(tokens).length}`);
+  console.log(`Tokens disponibles: ${Object.keys(tokens).join(', ')}`);
+  
+  // Verificar si el token existe
+  if (!tokens[token]) {
+    console.log(`Token no encontrado: ${token}`);
+    return res.status(404).json({ valid: false, error: 'Token no encontrado' });
+  }
+  
+  // Verificar si el token ha expirado
+  const tokenData = tokens[token];
+  const now = new Date().getTime();
+  
+  if (tokenData.expiresAt && now > tokenData.expiresAt) {
+    console.log(`Token expirado: ${token}`);
+    
+    // Eliminar el token expirado
+    delete tokens[token];
+    saveTokens(tokens);
+    
+    return res.status(401).json({ valid: false, error: 'Token expirado' });
+  }
+  
+  // Calcular tiempo restante
+  const hoursRemaining = Math.floor((tokenData.expiresAt - now) / (60 * 60 * 1000));
+  const minutesRemaining = Math.floor(((tokenData.expiresAt - now) % (60 * 60 * 1000)) / (60 * 1000));
+  
+  console.log(`Token válido: ${token} - expira en ${hoursRemaining}h ${minutesRemaining}m`);
+  
+  // El token es válido
+  res.json({
+    valid: true,
+    token,
+    expiresAt: tokenData.expiresAt,
+    remaining: `${hoursRemaining}h ${minutesRemaining}m`,
+    note: tokenData.note || ""
+  });
+});
+
+// Endpoint para obtener todos los tokens (solo admin)
+app.get('/api/tokens', (req, res) => {
+  const { password } = req.query;
+  
+  // Verificar autenticación (contraseña de administrador)
+  if (password !== "micausagufy1") {
+    return res.status(401).json({ error: 'No autorizado' });
+  }
+  
+  // Cargar y limpiar tokens expirados
+  const tokens = cleanExpiredTokens();
+  const now = new Date().getTime();
+  
+  // Preparar respuesta con información adicional
+  const result = {};
+  Object.keys(tokens).forEach(token => {
+    const tokenData = tokens[token];
+    const remainingMs = tokenData.expiresAt - now;
+    const remainingHours = Math.max(0, Math.floor(remainingMs / (60 * 60 * 1000)));
+    const remainingMinutes = Math.max(0, Math.floor((remainingMs % (60 * 60 * 1000)) / (60 * 1000)));
+    
+    result[token] = {
+      ...tokenData,
+      remaining: `${remainingHours}h ${remainingMinutes}m`,
+      isExpired: now > tokenData.expiresAt,
+      createdAtFormatted: new Date(tokenData.createdAt).toLocaleString(),
+      expiresAtFormatted: new Date(tokenData.expiresAt).toLocaleString()
+    };
+  });
+  
+  res.json(result);
+});
+
+// Endpoint para revocar un token
+app.delete('/api/tokens/:token', (req, res) => {
+  const { password } = req.query;
+  const token = req.params.token;
+  
+  // Verificar autenticación (contraseña de administrador)
+  if (password !== "micausagufy1") {
+    return res.status(401).json({ error: 'No autorizado' });
+  }
+  
+  if (!token) {
+    return res.status(400).json({ error: 'Token no proporcionado' });
+  }
+  
+  // Cargar tokens
+  const tokens = loadTokens();
+  
+  // Verificar si el token existe
+  if (!tokens[token]) {
+    return res.status(404).json({ error: 'Token no encontrado' });
+  }
+  
+  // Eliminar el token
+  delete tokens[token];
+  
+  // Guardar tokens
+  if (saveTokens(tokens)) {
+    console.log(`Token revocado: ${token}`);
+    res.json({ success: true, message: 'Token revocado correctamente' });
+  } else {
+    res.status(500).json({ error: 'Error al revocar el token' });
+  }
+});
+
+// Endpoint para revocar todos los tokens
+app.delete('/api/tokens', (req, res) => {
+  const { password } = req.query;
+  
+  // Verificar autenticación (contraseña de administrador)
+  if (password !== "micausagufy1") {
+    return res.status(401).json({ error: 'No autorizado' });
+  }
+  
+  // Guardar un objeto vacío como tokens
+  if (saveTokens({})) {
+    console.log('Todos los tokens han sido revocados');
+    res.json({ success: true, message: 'Todos los tokens han sido revocados' });
+  } else {
+    res.status(500).json({ error: 'Error al revocar todos los tokens' });
+  }
 });
 
 // Nuevo endpoint para buscar específicamente en RojaDirecta

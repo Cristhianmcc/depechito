@@ -56,17 +56,150 @@
         </div>
     </div>    <footer>
         <div class="footer-content">
-            <p>&copy; 2025 Machetero Tv <i class="fas fa-futbol ball-icon"></i> El mejor lugar para ver deportes en vivo</p>
-            <div class="footer-icons">
+            <p>&copy; 2025 Machetero Tv <i class="fas fa-futbol ball-icon"></i> El mejor lugar para ver deportes en vivo</p>            <div class="footer-icons">
                 <i class="fas fa-futbol"></i>
                 <i class="fas fa-trophy"></i>
                 <i class="fas fa-medal"></i>
                 <i class="fas fa-stopwatch"></i>
             </div>
         </div>
-    </footer>    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
-    <script src="auth.js"></script>
+    </footer>      <!-- Cargar primero las bibliotecas necesarias -->
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+      <!-- Estilos críticos para asegurar que los canales se muestran correctamente -->
+    <style>
+        /* Asegurar que el contenedor principal tiene el display correcto */
+        .container {
+            display: flex;
+            width: 100%;
+            min-height: 80vh;
+            padding: 20px;
+            box-sizing: border-box;
+            justify-content: space-between;
+            gap: 20px;
+        }
+        
+        /* Estilos para la lista de canales */
+        .channel-list {
+            flex: 0 0 300px;
+            background-color: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            padding: 15px;
+            display: block !important;
+        }
+        
+        /* Estilos para el reproductor de video */
+        .video-player {
+            flex: 1;
+            background-color: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            overflow: hidden;
+            display: flex !important;
+            flex-direction: column;
+        }
+        
+        #channel-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            max-height: 70vh;
+            overflow-y: auto;
+            display: block !important;
+        }
+        
+        #channel-list li {
+            padding: 10px;
+            margin-bottom: 5px;
+            background-color: rgba(0, 0, 0, 0.2);
+            border-radius: 5px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+        }
+        
+        #channel-list li:hover {
+            background-color: rgba(0, 0, 0, 0.4);
+        }
+        
+        #channel-list li.active {
+            background-color: #2c7b30;
+            font-weight: bold;
+        }
+        
+        .demo-channel {
+            border-left: 3px solid #3a8c3e;
+        }
+        
+        .channel-logo-small {
+            width: 24px;
+            height: 24px;
+            margin-right: 10px;
+        }
+        
+        .welcome-message {
+            padding: 20px;
+            background-color: rgba(0, 0, 0, 0.5);
+            border-radius: 10px;
+            margin: 20px auto;
+            max-width: 80%;
+            text-align: center;
+        }
+        
+        /* Estilos para la búsqueda */
+        .search-container {
+            position: relative;
+            margin-bottom: 15px;
+        }
+        
+        #search {
+            width: 100%;
+            padding: 8px 10px 8px 30px;
+            border-radius: 5px;
+            border: none;
+            background-color: rgba(255, 255, 255, 0.1);
+            color: white;
+        }
+        
+        .search-icon {
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: rgba(255, 255, 255, 0.6);
+        }    </style>
+    
+    <!-- Primero cargar HLS.js y DASH.js -->
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    
+    <!-- Cargar scripts.js antes que auth.js para asegurar que las funciones están disponibles -->
     <script src="scripts.js"></script>
     
+    <!-- Cargar auth.js después para que pueda acceder a las funciones de scripts.js -->
+    <script src="auth.js"></script>
+    
+    <!-- Script para verificar que todo se ha cargado correctamente -->
+    <script>
+      // Verificar que los elementos críticos están presentes y visibles después de la carga
+      document.addEventListener('DOMContentLoaded', function() {
+        console.log('=== VERIFICACIÓN DE CARGA DE PÁGINA ===');
+        setTimeout(() => {
+          const channelList = document.getElementById('channel-list');
+          const container = document.querySelector('.container');
+          
+          console.log('Estado de elementos críticos:');
+          console.log('- .container display:', window.getComputedStyle(container).display);
+          console.log('- #channel-list existe:', channelList !== null);
+          console.log('- #channel-list items:', channelList ? channelList.children.length : 0);
+          
+          // Si después de la autenticación aún no se muestran los canales, intentar forzar la visibilidad
+          if (localStorage.getItem('machetero_user_token') && (!channelList || channelList.children.length === 0)) {
+            console.warn('Se detectó un problema: los canales no se muestran a pesar de tener token');
+            if (typeof showMainContent === 'function') {
+              console.log('Intentando mostrar contenido principal nuevamente...');
+              showMainContent();
+            }
+          }
+        }, 2000);
+      });
+    </script>
 </body>
 </html>

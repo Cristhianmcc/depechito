@@ -213,3 +213,56 @@ footer {
     }
 }
 
+/* Estilos para mensajes de bienvenida y actualización */
+.welcome-message {
+    padding: 20px;
+    background-color: rgba(0, 0, 0, 0.7);
+    border-radius: 8px;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.welcome-message h3 {
+    margin-bottom: 10px;
+    color: #4CAF50;
+}
+
+.welcome-message .highlight {
+    color: #2196F3;
+    font-weight: bold;
+}
+
+.welcome-message .update-note {
+    margin-top: 15px;
+    padding: 8px;
+    background-color: #2e7d32;
+    color: white;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+/* Estilos para mensajes de error de token */
+.token-error-message {
+    padding: 15px;
+    background-color: rgba(183, 28, 28, 0.8);
+    border-radius: 8px;
+    margin: 15px auto;
+    text-align: center;
+    max-width: 90%;
+}
+
+.token-error-message p {
+    margin-bottom: 10px;
+}
+
+/* Animación para efectos de pulso */
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.8; }
+    100% { opacity: 1; }
+}
+
+.update-notification {
+    animation: pulse 2s infinite;
+}
+

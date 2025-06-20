@@ -1,3 +1,71 @@
+// Inicialización y disponibilidad global de funciones críticas
+// Debemos asegurar que estas funciones estén disponibles para auth.js
+(function initializeGlobalFunctions() {
+  console.log('Inicializando funciones globales en scripts.js');
+  
+  // Forzar limpieza de todos los tokens en caché
+  // Esto asegura que se usen los tokens actualizados en KNOWN_TOKENS
+  setTimeout(() => {
+    if (typeof clearAllTokenCache === 'function') {
+      console.log('Forzando limpieza de todos los tokens en caché debido a actualización masiva');
+      clearAllTokenCache();
+      localStorage.setItem('tokens_version', TOKENS_VERSION.toString());
+      console.log(`Versión de tokens actualizada a: ${TOKENS_VERSION}`);
+    }
+  }, 500);
+  
+  // Preparar objeto global en caso de que aún no se hayan definido las funciones
+  window.tvApp = window.tvApp || {};
+  
+  
+  // Versión simplificada de loadChannel para asegurar que siempre hay algo disponible
+  if (typeof window.loadChannel !== 'function') {
+    window.loadChannel = function simplifiedLoadChannel(name) {
+      console.log('Usando versión simplificada de loadChannel para:', name);
+      const player = document.getElementById('player');
+      const title = document.getElementById('channel-title');
+      
+      if (title) title.textContent = name;
+      
+      // Intentar reproducir canales de demo conocidos
+      if (name === 'NASA TV Public') {
+        if (player) {
+          player.src = 'https://ntv1.akamaized.net/hls/live/2014075/NASA-NTV1-HLS/master.m3u8';
+          player.load();
+          player.play().catch(e => console.error('Error al reproducir NASA TV:', e));
+        }
+      } else if (name === 'Red Bull TV') {
+        if (player) {
+          player.src = 'https://rbmn-live.akamaized.net/hls/live/590964/BoRB-AT/master.m3u8';
+          player.load();
+          player.play().catch(e => console.error('Error al reproducir Red Bull TV:', e));
+        }
+      } else {
+        // Para otros canales, solo actualizar la interfaz
+        const playerContainer = document.querySelector('.video-player');
+        if (playerContainer) {
+          // Mostrar mensaje
+          const infoMsg = document.createElement('div');
+          infoMsg.className = 'welcome-message';
+          infoMsg.innerHTML = `
+            <h3>Canal seleccionado: ${name}</h3>
+            <p>Este canal requiere la versión completa del reproductor.</p>
+          `;
+          
+          // Limpiar contenedor y añadir mensaje
+          const existingMsgs = playerContainer.querySelectorAll('.welcome-message');
+          existingMsgs.forEach(el => el.remove());
+          playerContainer.appendChild(infoMsg);
+        }
+      }
+      
+      return true;
+    };
+    
+    console.log('Versión simplificada de loadChannel instalada como fallback');
+  }
+})();
+
 // Esta función ahora está definida al principio del archivo para evitar errores de referencia
 function removeDashWarningMessage() {
   // Buscar cualquier mensaje de advertencia relacionado con DASH
@@ -26,6 +94,7 @@ function showWelcomeMessage() {
       <h3>¡Bienvenido al Reproductor de Canales!</h3>
       <p>Selecciona un canal desde la lista para comenzar a ver.</p>
       <p>Recomendamos empezar con los canales de <span class="highlight">NASA TV Public</span> o <span class="highlight">Red Bull TV</span> que suelen funcionar mejor.</p>
+      <p class="update-note">Los tokens de todos los canales han sido actualizados (${new Date().toLocaleString()}).</p>
     `;
     
     // Añadir el mensaje al contenedor del reproductor
@@ -220,6 +289,17 @@ function addPlayButton() {
 // Función para obtener un token válido desde la caché
 function getValidCachedToken(channelName) {
   try {
+    // Verificar versión del token
+    const savedTokensVersion = localStorage.getItem('tokens_version');
+    
+    // Si la versión ha cambiado, invalidar todas las cachés de tokens
+    if (!savedTokensVersion || parseInt(savedTokensVersion) < TOKENS_VERSION) {
+      console.log(`Versión de tokens actualizada: ${savedTokensVersion || 'ninguna'} -> ${TOKENS_VERSION}. Limpiando caché de tokens.`);
+      clearAllTokenCache();
+      localStorage.setItem('tokens_version', TOKENS_VERSION.toString());
+      return null;
+    }
+    
     // Obtener el token almacenado para el canal
     const cacheKey = `token_${channelName.replace(/\s+/g, '_').toLowerCase()}`;
     const cachedData = localStorage.getItem(cacheKey);
@@ -246,6 +326,39 @@ function getValidCachedToken(channelName) {
   } catch (error) {
     console.error(`Error al obtener token en caché para ${channelName}:`, error);
     return null;
+  }
+}
+
+// Función para limpiar token específico de la caché
+function clearTokenCache(channelName) {
+  try {
+    const cacheKey = `token_${channelName.replace(/\s+/g, '_').toLowerCase()}`;
+    localStorage.removeItem(cacheKey);
+    console.log(`Token en caché para ${channelName} eliminado`);
+    return true;
+  } catch (error) {
+    console.error(`Error al limpiar token en caché para ${channelName}:`, error);
+    return false;
+  }
+}
+
+// Función para limpiar todos los tokens en caché
+function clearAllTokenCache() {
+  try {
+    // Buscar todas las claves que empiezan con token_
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('token_')) {
+        const channelName = key.replace('token_', '').replace(/_/g, ' ');
+        console.log(`Eliminando token en caché para ${channelName}`);
+        localStorage.removeItem(key);
+      }
+    }
+    console.log('Caché de tokens limpiada correctamente');
+    return true;
+  } catch (error) {
+    console.error('Error al limpiar caché de tokens:', error);
+    return false;
   }
 }
 
@@ -331,18 +444,18 @@ function estimateTokenExpiration(token) {
 
 // Constantes para la URL base de los diferentes canales
 const CHANNEL_BASE_URLS = {
-  "Liga 1 Max": "https://dglvz29s.fubohd.com/liga1max/mono.m3u8",
-  "DIRECTV Sports HD": "https://am91cm5leQ.fubohd.com/dsports/mono.m3u8",
-  "DIRECTV Sports 2 HD": "https://dglvz29s.fubohd.com/dsports2/mono.m3u8",
-  "DirecTV Plus": "https://b2ZmaWNpYWw.fubohd.com/dsportsplus/mono.m3u8",
-  "ESPN": "https://c2f2zq.fubohd.com/espn/mono.m3u8",
-  "ESPN2": "https://bGFuZQ.fubohd.com/espn2/mono.m3u8",
-  "ESPN3": "https://am91cm5leQ.fubohd.com/espn3/mono.m3u8",
-  "ESPN4": "https://dglvz29s.fubohd.com/espn4/mono.m3u8",
+  "Liga 1 Max": "https://bGFuZQ.fubohd.com/liga1max/mono.m3u8",
+  "DIRECTV Sports HD": "https://tyg2mnl9.fubohd.com/dsports/mono.m3u8",
+  "DIRECTV Sports 2 HD": "https://anvtcax.fubohd.com/dsports2/mono.m3u8",
+  "DirecTV Plus": "https://eWVz.fubohd.com/dsportsplus/mono.m3u8",
+  "ESPN": "https://am91cm5leQ.fubohd.com/espn/mono.m3u8",
+  "ESPN2": "https://rm8zcvk3.fubohd.com/espn2/mono.m3u8",
+  "ESPN3": "https://eWVz.fubohd.com/espn3/mono.m3u8",
+  "ESPN4": "https://aGl2ZQ.fubohd.com/espn4/mono.m3u8",
   "ESPN5": "https://qzv4jmsc.fubohd.com/espn5/mono.m3u8",
-  "ESPN6": "https://agvyby.fubohd.com/espn6/mono.m3u8",
-  "ESPN7": "https://c2f2zq.fubohd.com/espn7/mono.m3u8",
-  "ESPN Premium": "https://a2lja3m.fubohd.com/espnpremium/mono.m3u8"
+  "ESPN6": "https://c2nvdxq.fubohd.com/espn6/mono.m3u8",
+  "ESPN7": "https://c2nvdxq.fubohd.com/espn7/mono.m3u8",
+  "ESPN Premium": "https://bmf0aw9u.fubohd.com/espnpremium/mono.m3u8"
 };
 
 // scripts.js mejorado
@@ -362,21 +475,24 @@ const DEMO_STREAMS = {
   "Demo Bajo": "https://bitdash-a.akamaihd.net/content/MI201109210084_1/m3u8s/f08e80da-bf1d-4e3d-8899-f0f6155f6efa.m3u8" // Stream de baja calidad que suele funcionar bien
 };
 
+// Versión de tokens - incrementar cuando se actualicen tokens importantes
+const TOKENS_VERSION = 3; // Actualizado para todos los canales con nuevos tokens
+
 // Tokens conocidos para canales específicos (se actualizan manualmente)
 const KNOWN_TOKENS = {
-  "Liga 1 Max": "f057ff2933c158c4d7fb2ec39c744773bb914657-96-1750403033-1750385033",
-  "DIRECTV Sports HD": "5ce9d8f836c84d63b9e4f954a2e267042f666749-4-1750406360-1750388360",
-  "DIRECTV Sports 2 HD": "31438de0305feebf6b7830afd1f4e83f2bca8bae-40-1750404198-1750386198",
-  "DirecTV Plus": "48cb7b0db0848802ce359e5f96dd202ecb6de0df-e9-1750413780-1750395780",
+  "Liga 1 Max": "d38e5213144afeaf29de7d39109cd37162b57c3b-65-1750446275-1750428275",
+  "DIRECTV Sports HD": "61cfa088b097200767adf86d505b4b9378c0cbc2-5-1750443916-1750425916",
+  "DIRECTV Sports 2 HD": "ec806f16b0201dfd2b8ea8d65e43b258c9eb5eaa-c3-1750445977-1750427977",
+  "DirecTV Plus": "6be5b52b874cc027af845465a1066be6be940865-d7-1750446014-1750428014",
   
-  "ESPN": "d30f1c43672f40df77c0205172841bb77db0d4e2-1d-1750404333-1750386333",
-  "ESPN2": "2c75a1d5187aac920acbd797c4adaaf26db13910-8b-1750404417-1750386417",
-  "ESPN3": "653adc01a02992ff31e8d6331439531a8cf743e9-3f-1750404482-1750386482",
-  "ESPN4": "7cfe9154e356e98d454868c29719cf8b657572d3-7b-1750413957-1750395957",
-  "ESPN5": "e0a8c5b80905b8b4b0ecdd7de82387bc6e6767d9-38-1750414076-1750396076",
-  "ESPN6": "127e6f8c667e81d3ae2d5bfe57324ddd98686f02-35-1750414140-1750396140",
-  "ESPN7": "1f64cda85516f558ff18b92a258a4ff82d747ce6-46-1750414182-1750396182",
-  "ESPN Premium": "4e472f822cf5e6278a434107b3ff97cc37aab0f6-36-1750404622-1750386622"
+  "ESPN": "9b9586272b50bb1ac4c6be0278fdfdbe3994dccf-de-1750446061-1750428061",
+  "ESPN2": "85cdc5ecd8f998f9013d805e252604e795366a5c-9f-1750446099-1750428099",
+  "ESPN3": "66342a841c5d31582050612be72f4de456f29844-fd-1750446130-1750428130",
+  "ESPN4": "657793ab65d0b60703472252f2d5c41d32d18a01-49-1750446153-1750428153",
+  "ESPN5": "8b1eb3e50f60713d7d4a20897ae6479006423158-eb-1750446190-1750428190",
+  "ESPN6": "bbe7a79233f58724968e3155c887c324cb8f08a1-a8-1750446215-1750428215",
+  "ESPN7": "82c2692613f5260ab3a53c2a1a73ab3930b736bc-18-1750446248-1750428248",
+  "ESPN Premium": "cf9d5acd892aef2408bed172229b8ad12b1e3784-85-1750446345-1750428345"
   // Movistar Deportes y Gol Perú serán añadidos cuando estén disponibles
 };
 
@@ -502,21 +618,37 @@ async function fetchNewLink(channelName) {
     const ttl = estimateTokenExpiration(token);
     cacheToken(channelName, token, ttl);
     
-    // URLs específicas según el canal
+    // Usar siempre las URLs base actualizadas de CHANNEL_BASE_URLS
+    if (CHANNEL_BASE_URLS[channelName]) {
+      return `${CHANNEL_BASE_URLS[channelName]}?token=${token}`;
+    }
+    
+    // URLs de respaldo específicas según el canal por si no está en CHANNEL_BASE_URLS
     if (lower.includes('liga 1 max')) {
-      return `https://dglvz29s.fubohd.com/liga1max/mono.m3u8?token=${token}`;
+      return `https://bGFuZQ.fubohd.com/liga1max/mono.m3u8?token=${token}`;
     } else if (lower.includes('directv sports 2') || lower.includes('dsports2')) {
-      return `https://dglvz29s.fubohd.com/dsports2/mono.m3u8?token=${token}`;
+      return `https://anvtcax.fubohd.com/dsports2/mono.m3u8?token=${token}`;
     } else if (lower.includes('directv sports') && !lower.includes('2') && !lower.includes('plus')) {
-      return `https://am91cm5leQ.fubohd.com/dsports/mono.m3u8?token=${token}`;
+      return `https://tyg2mnl9.fubohd.com/dsports/mono.m3u8?token=${token}`;
+    } else if (lower.includes('directv plus') || lower.includes('dsports plus')) {
+      return `https://eWVz.fubohd.com/dsportsplus/mono.m3u8?token=${token}`;
     } else if (lower.includes('espn premium')) {
-      return `https://a2lja3m.fubohd.com/espnpremium/mono.m3u8?token=${token}`;
+      return `https://bmf0aw9u.fubohd.com/espnpremium/mono.m3u8?token=${token}`;
     } else if (lower.includes('espn3') || lower.includes('espn 3')) {
-      return `https://am91cm5leQ.fubohd.com/espn3/mono.m3u8?token=${token}`;
+      return `https://eWVz.fubohd.com/espn3/mono.m3u8?token=${token}`;
     } else if (lower.includes('espn2') || lower.includes('espn 2')) {
-      return `https://bGFuZQ.fubohd.com/espn2/mono.m3u8?token=${token}`;
-    } else if (lower.includes('espn') && !lower.includes('premium') && !lower.includes('2') && !lower.includes('3')) {
-      return `https://c2f2zq.fubohd.com/espn/mono.m3u8?token=${token}`;
+      return `https://rm8zcvk3.fubohd.com/espn2/mono.m3u8?token=${token}`;
+    } else if (lower.includes('espn4') || lower.includes('espn 4')) {
+      return `https://aGl2ZQ.fubohd.com/espn4/mono.m3u8?token=${token}`;
+    } else if (lower.includes('espn5') || lower.includes('espn 5')) {
+      return `https://qzv4jmsc.fubohd.com/espn5/mono.m3u8?token=${token}`;
+    } else if (lower.includes('espn6') || lower.includes('espn 6')) {
+      return `https://c2nvdxq.fubohd.com/espn6/mono.m3u8?token=${token}`;
+    } else if (lower.includes('espn7') || lower.includes('espn 7')) {
+      return `https://c2nvdxq.fubohd.com/espn7/mono.m3u8?token=${token}`;
+    } else if (lower.includes('espn') && !lower.includes('premium') && !lower.includes('2') && !lower.includes('3') && 
+               !lower.includes('4') && !lower.includes('5') && !lower.includes('6') && !lower.includes('7')) {
+      return `https://am91cm5leQ.fubohd.com/espn/mono.m3u8?token=${token}`;
     }
   }
   
@@ -756,7 +888,7 @@ async function fetchNewLink(channelName) {
         const dsportsToken = KNOWN_TOKENS["DIRECTV Sports HD"];
         // Guardar token en caché
         cacheToken("DIRECTV Sports HD", dsportsToken);
-        return `https://aw1wcm92zq.fubohd.com/dsports/mono.m3u8?token=${dsportsToken}`;
+        return `https://tyg2mnl9.fubohd.com/dsports/mono.m3u8?token=${dsportsToken}`;
       }
       try {
         const res = await fetch(`${API_BASE_URL}/api/stream/dsports`);
@@ -1382,7 +1514,12 @@ function setupSearchFilter() {
 // Función para cargar la lista de canales en la UI
 function setupChannelList() {
   const channelList = document.getElementById('channel-list');
-  if (!channelList) return;
+  if (!channelList) {
+    console.error('No se pudo encontrar el elemento #channel-list');
+    return;
+  }
+  
+  console.log('Configurando lista de canales...');
   
   // Limpiar lista existente
   channelList.innerHTML = '';
@@ -1441,6 +1578,23 @@ function setupChannelList() {
   
   console.log(`Configurados ${channelList.children.length} canales en la UI`);
 }
+
+// Exponer las funciones en el ámbito global para que auth.js pueda acceder a ellas
+window.setupChannelList = setupChannelList;
+window.showWelcomeMessage = showWelcomeMessage;
+window.setupSearchFilter = setupSearchFilter;
+window.loadChannel = loadChannel; // También exportamos loadChannel para uso directo
+
+// Exponer el objeto LOGOS y CHANNELS para que auth.js pueda acceder a la lista completa de canales
+window.LOGOS = LOGOS;
+window.CHANNELS = CHANNELS;
+
+// Notificar que las funciones están disponibles
+console.log('Funciones de scripts.js expuestas globalmente');
+console.log('- setupChannelList:', typeof window.setupChannelList === 'function');
+console.log('- showWelcomeMessage:', typeof window.showWelcomeMessage === 'function');
+console.log('- setupSearchFilter:', typeof window.setupSearchFilter === 'function');
+console.log('- loadChannel:', typeof window.loadChannel === 'function');
 
 // Función para cargar un canal seleccionado
 function loadChannel(name, directUrl = null) {
@@ -1538,6 +1692,38 @@ function handleStreamError(isAccessError = false, is403Error = false, isFubohdEr
                      hls && hls.url && hls.url.includes('fubohd.com'))) {
     console.log(`Error 403 detectado para ${currentChannel}. El proveedor bloquea la reproducción.`);
     showStatus(`⛔ El proveedor de ${currentChannel} requiere un token actualizado.`);
+    
+    // Limpiar el token en caché para este canal
+    if (typeof clearTokenCache === 'function') {
+      console.log(`Limpiando token en caché para ${currentChannel} debido a error 403`);
+      clearTokenCache(currentChannel);
+      
+      // Mostrar mensaje y botón para reintentar
+      const playerContainer = document.querySelector('.video-player');
+      if (playerContainer) {
+        const tokenErrorMsg = document.createElement('div');
+        tokenErrorMsg.id = 'token-error-msg';
+        tokenErrorMsg.className = 'token-error-message';
+        tokenErrorMsg.innerHTML = `
+          <p><strong>Error 403:</strong> El token para ${currentChannel} ha expirado o es inválido.</p>
+          <p>Se ha limpiado la caché del token. Intente nuevamente.</p>
+          <button id="retry-channel-btn" class="action-button">Reintentar</button>
+        `;
+        
+        // Eliminar mensajes existentes
+        const existingMsgs = playerContainer.querySelectorAll('#token-error-msg');
+        existingMsgs.forEach(el => el.remove());
+        
+        playerContainer.appendChild(tokenErrorMsg);
+        
+        // Agregar función al botón
+        document.getElementById('retry-channel-btn').addEventListener('click', () => {
+          tokenErrorMsg.remove();
+          loadChannel(currentChannel);
+        });
+      }
+    }
+    
     showBlockedStreamMessage(currentChannel);
     
     // Añadir botón de búsqueda en RojaDirecta
@@ -1809,7 +1995,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // Ejecutar limpieza al inicio (después de 10 segundos para no interferir con la carga)
   setTimeout(cleanupExpiredTokens, 10000);
   
-  console.log('Inicializando aplicación...');
+  console.log('=== SCRIPTS.JS INICIALIZADO ===');
+  console.log('Esperando autorización de acceso...');
   
   // Verificar si la biblioteca dash.js está disponible
   if (typeof dashjs === 'undefined') {
@@ -1826,51 +2013,30 @@ document.addEventListener('DOMContentLoaded', () => {
     document.head.appendChild(script);
   }
   
-  // Configurar la lista de canales
-  setupChannelList();
+  // Verificar que las funciones estén en el ámbito global
+  const functionsAvailable = 
+    typeof window.setupChannelList === 'function' && 
+    typeof window.showWelcomeMessage === 'function' && 
+    typeof window.setupSearchFilter === 'function';
   
-  // Configurar el filtro de búsqueda
-  setupSearchFilter();
+  console.log('¿Funciones disponibles globalmente?', functionsAvailable ? 'Sí ✅' : 'No ❌');
   
-  // Mostrar mensaje de bienvenida
-  showWelcomeMessage();
-  
-  // Si hay URLs externas, cargarlas
-  if (PLAYLIST_URLS.length > 0) {
-    const promises = PLAYLIST_URLS.map(url => fetchTextViaProxy(url).then(parseM3U));
-    Promise.allSettled(promises).then(results => {
-      results.forEach(result => {
-        if (result.status === 'fulfilled') {
-          mergeExternalChannels(result.value);
-        }
-      });
-      setupChannelList(); // Actualizar la lista con los nuevos canales
-    });
+  if (!functionsAvailable) {
+    console.log('Re-exponiendo funciones al ámbito global...');
+    window.setupChannelList = setupChannelList;
+    window.showWelcomeMessage = showWelcomeMessage;
+    window.setupSearchFilter = setupSearchFilter;
+    window.loadChannel = loadChannel;
   }
   
-  // Pre-cargar el primer canal, empezando por un canal de demostración para confiabilidad
-  setTimeout(() => {
-    const channelList = document.getElementById('channel-list');
-    if (channelList && channelList.children.length > 0) {
-      // Intentar encontrar un canal de demostración primero
-      const demoChannel = Array.from(channelList.children).find(li => 
-        li.textContent.includes("DIRECTV Sports HD")
-      );
-      
-      if (demoChannel) {
-        demoChannel.click();
-      } else {
-        // Si no hay un canal de demostración, simplemente seleccionamos el primero
-        channelList.firstElementChild.click();
-      }
-    }
-    
-    // Mostrar información sobre cómo proporcionar tokens para canales deportivos
-    console.log('%c📌 INFORMACIÓN IMPORTANTE:', 'font-weight: bold; font-size: 14px; color: #e74c3c;');
-    console.log('Para que los canales deportivos funcionen correctamente, necesitas proporcionar tokens actualizados.');
-    console.log('Ya se ha configurado el token para Liga 1 Max que proporcionaste.');
-    console.log('Para otros canales, necesitarás actualizar el archivo server.js con tokens nuevos.');
-  }, 500);
+  // Marcar como listo para que auth.js pueda inicializar
+  window.scriptsJsReady = true;
+  
+  // Disparar un evento que auth.js pueda escuchar
+  document.dispatchEvent(new CustomEvent('scripts-js-loaded'));
+  
+  console.log('Scripts.js marcado como listo para inicialización desde auth.js');
+  console.log('=== FIN INICIALIZACIÓN SCRIPTS.JS ===');
 });
 
 // Dominios conocidos de agregadores de streams deportivos
