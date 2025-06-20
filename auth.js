@@ -256,7 +256,7 @@ function createLoginUI() {
   loginContainer.innerHTML = `
     <div class="login-header">
       <i class="fas fa-futbol ball-icon"></i>
-      <h2>De Pechito TV</h2>
+      <h2>Machetero TV</h2>
     </div>
     <div class="login-form">
       <div class="login-tabs">
@@ -485,7 +485,7 @@ function createAdminPanel() {
     // Intentar usar la API Web Share si está disponible
     if (navigator.share) {
       navigator.share({
-        title: 'De Pechito TV - Código de acceso',
+        title: 'Machetero TV - Código de acceso',
         text: shareText
       }).catch(error => {
         console.log('Error al compartir:', error);
