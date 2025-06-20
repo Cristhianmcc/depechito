@@ -1,0 +1,1052 @@
+/* Tema de Cancha de Fútbol Moderna para TV Streaming */
+:root {
+  --field-green: #3a8c3e;      /* Verde césped principal */
+  --field-green-dark: #2c672f; /* Verde césped oscuro */
+  --field-green-light: #4aac4e; /* Verde césped claro */
+  --field-line: #ffffff;       /* Líneas de la cancha */
+  --scoreboard-bg: #1a1a1a;    /* Fondo del marcador */
+  --scoreboard-text: #ffffff;  /* Texto del marcador */
+  --button-primary: #e74c3c;   /* Botón primario (rojo) */
+  --button-hover: #c0392b;     /* Botón al pasar el mouse */
+  --highlight-team1: #3498db;  /* Color de equipo 1 (azul) */
+  --highlight-team2: #e67e22;  /* Color de equipo 2 (naranja) */
+  --card-bg: rgba(0, 0, 0, 0.75); /* Fondo de tarjetas */
+  --text-light: #ffffff;       /* Texto claro */
+  --text-dark: #333333;        /* Texto oscuro */
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Poppins', Arial, sans-serif;
+  background: linear-gradient(135deg, var(--field-green-dark), var(--field-green), var(--field-green-light));
+  color: var(--text-light);
+  background-attachment: fixed;
+  position: relative;
+}
+
+/* Patrón de cancha de fútbol en el fondo */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: 
+    linear-gradient(to right, transparent 49%, rgba(255,255,255,0.1) 50%, transparent 51%),
+    linear-gradient(transparent 49%, rgba(255,255,255,0.1) 50%, transparent 51%);
+  background-size: 100px 100px, 100px 100px;
+  z-index: -1;
+  opacity: 0.3;
+}
+
+/* Círculo central de la cancha */
+body::after {
+  content: '';
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 200px;
+  height: 200px;
+  border: 5px solid rgba(255,255,255,0.2);
+  border-radius: 50%;
+  z-index: -1;
+}
+
+header {
+  background-color: var(--scoreboard-bg);
+  color: var(--scoreboard-text);
+  padding: 25px 20px;
+  text-align: center;
+  border-bottom: 4px solid var(--button-primary);
+  box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Efecto de patrón de tablero de puntuación */
+header::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: 
+    linear-gradient(90deg, 
+      rgba(255,255,255,0.05) 0%, 
+      rgba(255,255,255,0.05) 50%, 
+      transparent 50%, 
+      transparent 100%),
+    linear-gradient(rgba(255,255,255,0.05) 0%, 
+      rgba(255,255,255,0.05) 50%, 
+      transparent 50%, 
+      transparent 100%);
+  background-size: 20px 20px;
+  z-index: -1;
+}
+
+header h1 {
+  font-size: 2.5rem;
+  margin-bottom: 5px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 15px;
+}
+
+header h2 {
+  font-size: 1.8rem;
+  margin-bottom: 10px;
+  color: var(--button-primary);
+  font-weight: 600;
+  position: relative;
+  display: inline-block;
+}
+
+/* Añadir subrayado estilo campo de fútbol */
+header h2::after {
+  content: '';
+  position: absolute;
+  bottom: -5px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80px;
+  height: 2px;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--field-line),
+    var(--field-line) 5px,
+    transparent 5px,
+    transparent 10px
+  );
+}
+
+header p {
+  font-size: 1.1rem;
+  opacity: 0.9;
+}
+
+.container {
+  display: flex;
+  justify-content: space-between;
+  padding: 25px;
+  gap: 25px;
+  max-width: 1400px;
+  margin: 0 auto;
+  position: relative;
+}
+
+/* Linea de medio campo */
+.container::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: rgba(255,255,255,0.2);
+  z-index: -1;
+}
+
+/* Lista de canales (lado izquierdo) */
+.channel-list {
+  overflow-y: auto;
+  max-height: 80vh;
+  width: 30%;
+  padding: 20px;
+  background-color: var(--card-bg);
+  border-radius: 10px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+  border: 1px solid rgba(255,255,255,0.1);
+  backdrop-filter: blur(10px);
+  position: relative;
+}
+
+/* Efecto de banquillo de jugadores */
+.channel-list::before {
+  content: '';
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80%;
+  height: 10px;
+  background-color: var(--button-primary);
+  border-radius: 5px 5px 0 0;
+  box-shadow: 0 -2px 5px rgba(0,0,0,0.2);
+}
+
+.channel-list h2 {
+  margin-bottom: 15px;
+  text-align: center;
+  font-size: 1.5rem;
+  padding-bottom: 10px;
+  border-bottom: 2px solid var(--field-line);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.search-container {
+  position: relative;
+  margin-bottom: 20px;
+}
+
+.channel-list input {
+  width: 100%;
+  padding: 12px 15px 12px 40px;
+  border: none;
+  border-radius: 8px;
+  background-color: rgba(255,255,255,0.1);
+  color: var(--text-light);
+  font-size: 1rem;
+  transition: all 0.3s ease;
+  border: 1px solid rgba(255,255,255,0.2);
+}
+
+.search-icon {
+  position: absolute;
+  left: 15px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: rgba(255,255,255,0.6);
+}
+
+.channel-list input:focus {
+  outline: none;
+  background-color: rgba(255,255,255,0.2);
+  box-shadow: 0 0 0 2px var(--button-primary);
+}
+
+.channel-list input::placeholder {
+  color: rgba(255,255,255,0.6);
+}
+
+.channel-list ul {
+  list-style: none;
+  padding-left: 0;
+  position: relative;
+}
+
+/* Línea central de la lista */
+.channel-list ul::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(255,255,255,0.1);
+  z-index: 0;
+}
+
+.channel-list li {
+  display: flex;
+  align-items: center;
+  padding: 12px 15px;
+  margin: 8px 0;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+  background-color: rgba(0,0,0,0.4);
+  border-left: 4px solid transparent;
+  position: relative;
+  z-index: 1;
+}
+
+/* Efecto hover con animación de pelota */
+.channel-list li:hover {
+  background-color: rgba(0,0,0,0.6);
+  transform: translateX(5px);
+  border-left: 4px solid var(--button-primary);
+}
+
+.channel-list li:hover::before {
+  content: '⚽';
+  position: absolute;
+  right: 10px;
+  font-size: 14px;
+  opacity: 0.7;
+  animation: bounce 0.5s ease;
+}
+
+@keyframes bounce {
+  0% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+  100% { transform: translateY(0); }
+}
+
+.channel-list li.active {
+  background-color: var(--highlight-team1);
+  color: white;
+  border-left: 4px solid var(--button-primary);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+}
+
+.channel-list li.demo-channel {
+  background-color: rgba(46, 204, 113, 0.3);
+  border-left: 4px solid #2ecc71;
+}
+
+.channel-list li.demo-channel:hover {
+  background-color: rgba(46, 204, 113, 0.5);
+}
+
+.channel-list li.demo-channel.active {
+  background-color: #27ae60;
+}
+
+.channel-logo-small {
+  width: 32px;
+  height: 32px;
+  margin-right: 12px;
+  object-fit: contain;
+  border-radius: 50%;
+  background-color: white;
+  padding: 3px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  transition: transform 0.3s ease;
+}
+
+.channel-list li:hover .channel-logo-small {
+  transform: scale(1.1);
+}
+
+/* Área del reproductor de video (lado derecho) */
+.video-player {
+  width: 70%;
+  padding: 20px;
+  background-color: var(--card-bg);
+  border-radius: 10px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+  border: 1px solid rgba(255,255,255,0.1);
+  backdrop-filter: blur(10px);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Efecto de arco de fútbol alrededor del reproductor */
+.video-player::before {
+  content: '';
+  position: absolute;
+  top: -80px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 300px;
+  height: 150px;
+  border: 5px solid rgba(255,255,255,0.1);
+  border-bottom: none;
+  border-radius: 150px 150px 0 0;
+  z-index: 0;
+}
+
+.player-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 2px solid rgba(255,255,255,0.2);
+  position: relative;
+  z-index: 1;
+}
+
+#channel-logo {
+  width: 50px;
+  height: 50px;
+  margin-right: 15px;
+  object-fit: contain;
+  border-radius: 50%;
+  background-color: white;
+  padding: 5px;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+  transition: transform 0.3s ease;
+}
+
+#channel-logo:hover {
+  transform: scale(1.1) rotate(10deg);
+}
+
+#channel-title {
+  font-size: 1.5rem;
+  font-weight: bold;
+  flex-grow: 1;
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+}
+
+#quality-badge {
+  background-color: var(--button-primary);
+  color: white;
+  padding: 5px 10px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: bold;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.player-container {
+  position: relative;
+}
+
+#player {
+  display: block;
+  width: 100%;
+  border-radius: 10px;
+  background-color: #000;
+  margin-bottom: 15px;
+  box-shadow: 0 8px 25px rgba(0,0,0,0.5);
+  aspect-ratio: 16/9;
+  position: relative;
+  z-index: 2;
+}
+
+/* Decoraciones de cancha */
+.field-decorations {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.goal-left, .goal-right {
+  position: absolute;
+  width: 10px;
+  height: 100px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 3px solid rgba(255,255,255,0.1);
+}
+
+.goal-left {
+  left: -5px;
+  border-right: none;
+  border-radius: 5px 0 0 5px;
+}
+
+.goal-right {
+  right: -5px;
+  border-left: none;
+  border-radius: 0 5px 5px 0;
+}
+
+.status {
+  margin: 15px 0;
+  padding: 15px;
+  background-color: rgba(0, 0, 0, 0.7);
+  border-radius: 8px;
+  text-align: center;
+  line-height: 1.5;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+  border-left: 4px solid var(--button-primary);
+  position: relative;
+  z-index: 2;
+}
+
+/* Botones de acción */
+.action-button {
+  background-color: var(--button-primary);
+  color: white;
+  border: none;
+  padding: 12px 20px;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+  margin: 5px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Efecto de ondas al hacer clic */
+.action-button::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.5);
+  opacity: 0;
+  border-radius: 100%;
+  transform: scale(1, 1) translate(-50%, -50%);
+  transform-origin: 50% 50%;
+}
+
+.action-button:active::after {
+  animation: ripple 0.6s ease-out;
+}
+
+@keyframes ripple {
+  0% {
+    transform: scale(0, 0);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(20, 20);
+    opacity: 0;
+  }
+}
+
+.action-button:hover {
+  background-color: var(--button-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(0,0,0,0.3);
+}
+
+.action-button:active {
+  transform: translateY(1px);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.play-button {
+  background-color: #27ae60;
+}
+
+.play-button:hover {
+  background-color: #2ecc71;
+}
+
+.rojadirecta-button {
+  background-color: var(--button-primary) !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.rojadirecta-button::before {
+  content: '⚽';
+  font-size: 16px;
+}
+
+.rojadirecta-button:hover {
+  background-color: var(--button-hover) !important;
+}
+
+.try-another {
+  background-color: var(--highlight-team2);
+}
+
+.try-another:hover {
+  background-color: #d35400;
+}
+
+.blocked-actions {
+  display: flex;
+  gap: 15px;
+  justify-content: center;
+  margin-top: 15px;
+  flex-wrap: wrap;
+}
+
+/* Mensajes */
+.welcome-message, .demo-message, .blocked-message, .error-message {
+  background-color: rgba(0, 0, 0, 0.7);
+  padding: 20px;
+  border-radius: 10px;
+  margin: 15px 0;
+  text-align: center;
+  box-shadow: 0 6px 15px rgba(0,0,0,0.3);
+  border: 1px solid rgba(255,255,255,0.1);
+  position: relative;
+  z-index: 2;
+}
+
+.welcome-message h3, .demo-message h3, .blocked-message h3, .error-message h3 {
+  margin-bottom: 15px;
+  color: var(--button-primary);
+  font-size: 1.4rem;
+  position: relative;
+  display: inline-block;
+}
+
+/* Subrayado especial para los encabezados de mensaje */
+.welcome-message h3::after, .demo-message h3::after, .blocked-message h3::after, .error-message h3::after {
+  content: '';
+  position: absolute;
+  bottom: -5px;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--button-primary),
+    var(--button-primary) 5px,
+    transparent 5px,
+    transparent 10px
+  );
+}
+
+.welcome-message p, .demo-message p, .blocked-message p, .error-message p {
+  margin-bottom: 10px;
+  line-height: 1.6;
+}
+
+.highlight {
+  color: var(--button-primary);
+  font-weight: bold;
+}
+
+/* Listas en mensajes de error */
+.blocked-message ul, .error-message ul {
+  text-align: left;
+  margin: 15px auto;
+  max-width: 80%;
+  list-style-position: inside;
+}
+
+.blocked-message li, .error-message li {
+  margin-bottom: 8px;
+  position: relative;
+  padding-left: 5px;
+}
+
+footer {
+  text-align: center;
+  padding: 25px;
+  background-color: var(--scoreboard-bg);
+  color: var(--scoreboard-text);
+  margin-top: 30px;
+  border-top: 4px solid var(--button-primary);
+  box-shadow: 0 -5px 15px rgba(0,0,0,0.2);
+  position: relative;
+}
+
+/* Efecto de gramilla en el footer */
+footer::before {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--field-green-dark),
+    var(--field-green-dark) 5px,
+    var(--field-green-light) 5px,
+    var(--field-green-light) 10px
+  );
+}
+
+.footer-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.footer-icons {
+  display: flex;
+  gap: 15px;
+  font-size: 1.2rem;
+}
+
+.footer-icons i {
+  opacity: 0.7;
+  transition: all 0.3s ease;
+}
+
+.footer-icons i:hover {
+  opacity: 1;
+  transform: scale(1.2);
+  color: var(--button-primary);
+}
+
+footer p {
+  font-size: 1rem;
+  opacity: 0.8;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Añadir efecto de pelota rodando */
+@keyframes roll {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.ball-icon {
+  display: inline-block;
+  animation: roll 8s linear infinite;
+}
+
+/* Estilos responsivos para todos los dispositivos */
+@media (max-width: 1366px) {
+  .container {
+    max-width: 1200px;
+  }
+}
+
+@media (max-width: 1200px) {
+  .container {
+    max-width: 95%;
+  }
+}
+
+@media (max-width: 1024px) {
+  .container {
+    padding: 15px;
+    gap: 15px;
+  }
+  
+  #channel-title {
+    font-size: 1.2rem;
+  }
+  
+  .channel-list, .video-player {
+    padding: 15px;
+  }
+  
+  header h1 {
+    font-size: 2.2rem;
+  }
+}
+
+@media (max-width: 900px) {
+  .container {
+    gap: 10px;
+  }
+  
+  .channel-list {
+    width: 35%;
+  }
+  
+  .video-player {
+    width: 65%;
+  }
+  
+  #channel-logo {
+    width: 40px;
+    height: 40px;
+  }
+  
+  .action-button {
+    padding: 10px 15px;
+    font-size: 0.9rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .container {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .channel-list, .video-player {
+    width: 100%;
+    margin-bottom: 20px;
+    max-height: none;
+  }
+  
+  .channel-list {
+    max-height: 300px;
+    order: 2;
+  }
+  
+  .video-player {
+    order: 1;
+  }
+  
+  header h1 {
+    font-size: 1.8rem;
+    gap: 10px;
+  }
+  
+  header h2 {
+    font-size: 1.4rem;
+  }
+  
+  header p {
+    font-size: 1rem;
+  }
+  
+  .player-header {
+    flex-wrap: wrap;
+  }
+  
+  #quality-badge {
+    margin-top: 5px;
+  }
+  
+  .blocked-actions {
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .action-button {
+    width: 100%;
+    max-width: 300px;
+  }
+  
+  .channel-list li {
+    padding: 10px;
+  }
+  
+  /* Mejora para dispositivos táctiles */
+  .channel-list li {
+    padding: 12px 10px;
+    margin: 6px 0;
+  }
+}
+
+@media (max-width: 480px) {
+  header h1 {
+    font-size: 1.5rem;
+  }
+  
+  header h2 {
+    font-size: 1.2rem;
+  }
+  
+  .channel-list h2, .video-player h2 {
+    font-size: 1.2rem;
+  }
+  
+  #channel-logo {
+    width: 36px;
+    height: 36px;
+  }
+  
+  #channel-title {
+    font-size: 1.1rem;
+  }
+  
+  .welcome-message h3, .demo-message h3, .blocked-message h3, .error-message h3 {
+    font-size: 1.2rem;
+  }
+  
+  .channel-list {
+    max-height: 250px;
+  }
+  
+  .footer-icons {
+    gap: 10px;
+    font-size: 1rem;
+  }
+  
+  .player-header {
+    padding-bottom: 10px;
+    margin-bottom: 10px;
+  }
+  
+  .channel-list li {
+    margin: 5px 0;
+  }
+  
+  .search-container {
+    margin-bottom: 15px;
+  }
+  
+  .channel-list input {
+    padding: 10px 15px 10px 35px;
+  }
+}
+
+@media (max-width: 380px) {
+  header h1 {
+    font-size: 1.3rem;
+    gap: 5px;
+  }
+  
+  header h2 {
+    font-size: 1.1rem;
+  }
+  
+  header p {
+    font-size: 0.9rem;
+  }
+  
+  .channel-list, .video-player {
+    padding: 10px;
+  }
+  
+  #channel-logo {
+    width: 30px;
+    height: 30px;
+    margin-right: 8px;
+  }
+  
+  #channel-title {
+    font-size: 1rem;
+  }
+  
+  .channel-logo-small {
+    width: 24px;
+    height: 24px;
+    margin-right: 8px;
+  }
+  
+  .player-container {
+    margin-top: 5px;
+  }
+  
+  .footer-content p {
+    font-size: 0.9rem;
+  }
+  
+  /* Ajuste para mejor visualización en pantallas muy pequeñas */
+  #player {
+    aspect-ratio: auto;
+    min-height: 180px;
+  }
+}
+
+/* Ajustes para dispositivos en orientación horizontal */
+@media (max-height: 600px) and (orientation: landscape) {
+  header {
+    padding: 10px;
+  }
+  
+  header h1 {
+    font-size: 1.5rem;
+    margin-bottom: 2px;
+  }
+  
+  header h2 {
+    font-size: 1.2rem;
+    margin-bottom: 2px;
+  }
+  
+  header p {
+    font-size: 0.9rem;
+  }
+  
+  .container {
+    padding: 10px;
+  }
+  
+  .channel-list {
+    max-height: 70vh;
+  }
+  
+  .video-player {
+    padding: 15px;
+  }
+  
+  #player {
+    max-height: 60vh;
+  }
+}
+
+/* Soporte para pantallas extra grandes */
+@media (min-width: 1600px) {
+  .container {
+    max-width: 1500px;
+  }
+  
+  header h1 {
+    font-size: 3rem;
+  }
+  
+  header h2 {
+    font-size: 2rem;
+  }
+  
+  .channel-list li {
+    padding: 15px;
+    font-size: 1.1rem;
+  }
+  
+  .channel-logo-small {
+    width: 40px;
+    height: 40px;
+  }
+  
+  #channel-logo {
+    width: 60px;
+    height: 60px;
+  }
+  
+  #channel-title {
+    font-size: 1.8rem;
+  }
+  
+  #quality-badge {
+    font-size: 1rem;
+    padding: 6px 12px;
+  }
+  
+  .action-button {
+    font-size: 1.1rem;
+    padding: 15px 25px;
+  }
+}
+
+/* Estilos de desplazamiento personalizados */
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(0,0,0,0.3);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--button-primary);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--button-hover);
+}
+
+/* Animaciones adicionales */
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.video-player {
+  animation: fadeIn 0.5s ease-in-out;
+}
+
+#player:hover {
+  box-shadow: 0 8px 30px var(--button-primary);
+}
+
+/* Estado de carga */
+.loading {
+  position: relative;
+}
+
+.loading::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.7) url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="80" height="80"><circle cx="50" cy="50" r="40" stroke="%23e74c3c" stroke-width="8" fill="none" stroke-dasharray="251.2" stroke-dashoffset="0"><animateTransform attributeName="transform" attributeType="XML" type="rotate" from="0 50 50" to="360 50 50" dur="2s" repeatCount="indefinite"/></circle></svg>') no-repeat center center;
+  border-radius: 10px;
+  z-index: 10;
+}

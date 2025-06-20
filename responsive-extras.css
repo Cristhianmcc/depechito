@@ -1,0 +1,156 @@
+/* Ajustes adicionales para reproductor de video responsivo */
+.player-container {
+  position: relative;
+  width: 100%;
+  height: 0;
+  padding-bottom: 56.25%; /* Relación de aspecto 16:9 */
+  overflow: hidden;
+  border-radius: 10px;
+}
+
+#player {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: #000;
+  border-radius: 10px;
+  object-fit: contain;
+}
+
+/* Mejoras de accesibilidad para dispositivos táctiles */
+@media (pointer: coarse) {
+  .channel-list li {
+    padding: 14px 15px;
+    margin: 8px 0;
+  }
+  
+  .action-button {
+    min-height: 44px; /* Altura mínima para botones táctiles */
+  }
+  
+  input, button, a {
+    min-height: 44px;
+  }
+  
+  .player-header {
+    min-height: 50px;
+  }
+  
+  /* Controles de video más grandes en dispositivos táctiles */
+  video::-webkit-media-controls-panel {
+    padding: 5px;
+  }
+  
+  video::-webkit-media-controls-play-button,
+  video::-webkit-media-controls-volume-slider,
+  video::-webkit-media-controls-mute-button,
+  video::-webkit-media-controls-fullscreen-button {
+    transform: scale(1.2);
+  }
+}
+
+/* Ajustes para dispositivos con notch (iPhone X y posteriores) */
+@supports (padding: max(0px)) {
+  header {
+    padding-top: max(20px, env(safe-area-inset-top));
+    padding-left: max(20px, env(safe-area-inset-left));
+    padding-right: max(20px, env(safe-area-inset-right));
+  }
+  
+  footer {
+    padding-bottom: max(20px, env(safe-area-inset-bottom));
+    padding-left: max(20px, env(safe-area-inset-left));
+    padding-right: max(20px, env(safe-area-inset-right));
+  }
+}
+
+/* Optimización para pantallas ultra anchas */
+@media (min-width: 2000px) {
+  .container {
+    max-width: 1800px;
+  }
+  
+  body {
+    font-size: 18px;
+  }
+  
+  .channel-list {
+    width: 25%;
+  }
+  
+  .video-player {
+    width: 75%;
+  }
+}
+
+/* Ajustes para orientación cambiante (rotación de dispositivos) */
+@media screen and (orientation: portrait) {
+  .container {
+    flex-direction: column;
+  }
+  
+  .channel-list, .video-player {
+    width: 100%;
+  }
+}
+
+@media screen and (orientation: landscape) and (max-width: 1024px) {
+  .container {
+    flex-direction: row;
+  }
+  
+  .channel-list {
+    width: 30%;
+    max-height: 80vh;
+  }
+  
+  .video-player {
+    width: 70%;
+  }
+}
+
+/* Efectos de carga suaves al iniciar */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.channel-list {
+  animation: fadeInUp 0.5s ease-out;
+}
+
+.video-player {
+  animation: fadeInUp 0.7s ease-out;
+}
+
+/* Optimización para impresión */
+@media print {
+  body {
+    background: white;
+    color: black;
+  }
+  
+  .container, header, footer {
+    width: 100%;
+    margin: 0;
+    padding: 0;
+  }
+  
+  .video-player, .channel-list {
+    width: 100%;
+    box-shadow: none;
+    border: 1px solid #ddd;
+  }
+  
+  #player, .channel-list input, .action-button, .footer-icons {
+    display: none;
+  }
+}

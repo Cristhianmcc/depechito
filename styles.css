@@ -184,6 +184,23 @@ footer {
     color: #fff;
 }
 
+/* Estilos para botones de RojaDirecta */
+.rojadirecta-button {
+  background-color: #e74c3c !important;
+  color: white !important;
+}
+
+.rojadirecta-button:hover {
+  background-color: #c0392b !important;
+}
+
+.blocked-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 10px;
+}
+
 @media (max-width: 768px) {
     .container {
         flex-direction: column;

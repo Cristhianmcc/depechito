@@ -47,6 +47,208 @@ function extractMPD(html) {
   return match ? match[0] : null;
 }
 
+// Función para extraer tokens y URLs de streams desde RojaDirecta
+async function extractFromRojaDirecta(eventNameOrChannel) {
+  console.log(`Intentando extraer stream para ${eventNameOrChannel} desde RojaDirecta...`);
+  
+  // URLs de RojaDirecta y sus variantes
+  const rojaSites = [
+    'https://rojadirecta.watch',
+    'https://rojadirectaenvivo.com',
+    'https://rojadirectatv.tv',
+    'https://rojadirectaenvivo.net',
+    'https://rojadirecta.unblockit.kim'
+  ];
+  
+  const results = [];
+  
+  // Para cada dominio de Rojadirecta, intentamos buscar el evento/canal
+  for (const site of rojaSites) {
+    try {
+      console.log(`Buscando en ${site}...`);
+      
+      // 1. Primero accedemos a la página principal para buscar el evento/canal
+      const mainResponse = await fetch(site, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        },
+        agent: httpsAgent,
+        timeout: 10000
+      });
+      
+      if (!mainResponse.ok) {
+        console.log(`Error accediendo a ${site}: ${mainResponse.status}`);
+        continue;
+      }
+      
+      const mainHtml = await mainResponse.text();
+      const $ = cheerio.load(mainHtml);
+      
+      // 2. Buscar enlaces que contengan el nombre del evento o canal
+      const eventLinks = [];
+      $('a').each((_, el) => {
+        const href = $(el).attr('href');
+        const text = $(el).text().toLowerCase();
+        
+        // Si el texto del enlace contiene el nombre del canal/evento, lo guardamos
+        if (text && href && 
+            (text.includes(eventNameOrChannel.toLowerCase()) || 
+             eventNameOrChannel.toLowerCase().includes(text))) {
+          if (href.startsWith('/')) {
+            eventLinks.push(site + href);
+          } else if (href.startsWith('http')) {
+            eventLinks.push(href);
+          }
+        }
+      });
+      
+      console.log(`Encontrados ${eventLinks.length} posibles enlaces para ${eventNameOrChannel}`);
+      
+      // 3. Para cada enlace de evento encontrado, accedemos y buscamos los streamers
+      for (const eventLink of eventLinks.slice(0, 3)) { // Limitamos a 3 para no hacer demasiadas peticiones
+        try {
+          console.log(`Accediendo a evento: ${eventLink}`);
+          const eventResponse = await fetch(eventLink, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            },
+            agent: httpsAgent,
+            timeout: 10000
+          });
+          
+          if (!eventResponse.ok) continue;
+          
+          const eventHtml = await eventResponse.text();
+          const $event = cheerio.load(eventHtml);
+          
+          // 4. Buscar enlaces de streamers (suelen estar en tablas o listas específicas)
+          const streamerLinks = [];
+          
+          // Buscar en enlaces con clases específicas de RojaDirecta
+          $event('a.link, span.url, td.event a, a[target="_blank"]').each((_, el) => {
+            const href = $event(el).attr('href');
+            if (href && (href.includes('embed') || href.includes('player') || href.includes('stream'))) {
+              streamerLinks.push(href);
+            }
+          });
+          
+          console.log(`Encontrados ${streamerLinks.length} enlaces de streamers`);
+          
+          // 5. Para cada streamer, accedemos y buscamos el token
+          for (const streamerLink of streamerLinks.slice(0, 5)) { // Limitamos a 5
+            try {
+              // No todos los enlaces tienen protocolos
+              const fullLink = streamerLink.startsWith('http') ? 
+                               streamerLink : 
+                               (streamerLink.startsWith('/') ? site + streamerLink : `https://${streamerLink}`);
+              
+              console.log(`Accediendo a streamer: ${fullLink}`);
+              
+              const streamerResponse = await fetch(fullLink, {
+                headers: {
+                  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                  'Referer': eventLink
+                },
+                agent: httpsAgent,
+                timeout: 15000
+              });
+              
+              if (!streamerResponse.ok) continue;
+              
+              const streamerHtml = await streamerResponse.text();
+              
+              // 6. Buscar URLs de stream y tokens
+              // Primero buscamos M3U8 URLs
+              const m3u8Url = extractM3U8(streamerHtml);
+              if (m3u8Url) {
+                console.log(`¡Encontrado stream M3U8!: ${m3u8Url}`);
+                
+                // Extraer token si existe
+                let token = null;
+                if (m3u8Url.includes('token=')) {
+                  const tokenMatch = m3u8Url.match(/token=([^&]+)/);
+                  token = tokenMatch ? tokenMatch[1] : null;
+                }
+                
+                results.push({
+                  url: m3u8Url,
+                  token,
+                  source: fullLink
+                });
+              }
+              
+              // También buscar en scripts JavaScript
+              const $streamer = cheerio.load(streamerHtml);
+              $streamer('script').each((_, el) => {
+                const scriptContent = $streamer(el).html();
+                if (!scriptContent) return;
+                
+                // Buscar patrones comunes de tokens en JavaScript
+                if (scriptContent.includes('token') || scriptContent.includes('source')) {
+                  // Buscar definiciones de token
+                  const tokenMatch = scriptContent.match(/token\s*[:=]\s*['"]([^'"]+)['"]/);
+                  if (tokenMatch && tokenMatch[1]) {
+                    console.log(`¡Encontrado token en JavaScript!: ${tokenMatch[1]}`);
+                    
+                    // Buscar la URL del stream
+                    const streamMatch = scriptContent.match(/source\s*[:=]\s*['"]([^'"]+)['"]/);
+                    const streamUrl = streamMatch ? streamMatch[1] : extractM3U8(scriptContent);
+                    
+                    if (streamUrl) {
+                      results.push({
+                        url: streamUrl,
+                        token: tokenMatch[1],
+                        source: fullLink
+                      });
+                    }
+                  } else {
+                    // Buscar URLs con token incluido
+                    const m3u8WithToken = extractM3U8(scriptContent);
+                    if (m3u8WithToken && m3u8WithToken.includes('token=')) {
+                      const tokenInUrlMatch = m3u8WithToken.match(/token=([^&]+)/);
+                      if (tokenInUrlMatch && tokenInUrlMatch[1]) {
+                        console.log(`¡Encontrado token en URL!: ${tokenInUrlMatch[1]}`);
+                        results.push({
+                          url: m3u8WithToken,
+                          token: tokenInUrlMatch[1],
+                          source: fullLink
+                        });
+                      }
+                    }
+                  }
+                }
+              });
+              
+              // Si ya encontramos suficientes resultados, podemos parar
+              if (results.length >= 3) break;
+              
+            } catch (e) {
+              console.log(`Error accediendo a streamer ${streamerLink}: ${e.message}`);
+            }
+          }
+          
+          // Si ya encontramos suficientes resultados, podemos parar
+          if (results.length >= 3) break;
+          
+        } catch (e) {
+          console.log(`Error accediendo a evento ${eventLink}: ${e.message}`);
+        }
+      }
+      
+      // Si encontramos al menos un resultado, podemos terminar la búsqueda
+      if (results.length > 0) break;
+      
+    } catch (e) {
+      console.log(`Error general con ${site}: ${e.message}`);
+    }
+  }
+  
+  console.log(`Resultados para ${eventNameOrChannel}: ${results.length} streams encontrados`);
+  return results;
+}
+
+// Servidor Express
+
 // Endpoint para verificar el estado del servidor
 app.get('/api/status', (req, res) => {
   res.json({
@@ -292,6 +494,28 @@ app.get('/api/config', (req, res) => {
     environment: process.env.NODE_ENV || 'development',
     timestamp: new Date().toISOString()
   });
+});
+
+// Nuevo endpoint para buscar específicamente en RojaDirecta
+app.get('/api/rojadirecta/:query', async (req, res) => {
+  try {
+    const query = req.params.query;
+    console.log(`Búsqueda en RojaDirecta para: ${query}`);
+    
+    const results = await extractFromRojaDirecta(query);
+    
+    if (results.length > 0) {
+      res.json({ success: true, results });
+    } else {
+      res.status(404).json({ 
+        success: false, 
+        message: 'No se encontraron streams en RojaDirecta para esta búsqueda' 
+      });
+    }
+  } catch (error) {
+    console.error('Error en búsqueda de RojaDirecta:', error);
+    res.status(500).json({ success: false, error: 'Error interno del servidor' });
+  }
 });
 
 app.listen(PORT, () => console.log(`Scraper proxy running on http://localhost:${PORT}`));

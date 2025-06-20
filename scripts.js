@@ -92,8 +92,11 @@ function showBlockedStreamMessage(channelName) {
         <li>El servidor bloquea el acceso desde nuestra página</li>
         <li>Hay restricciones geográficas para este contenido</li>
       </ul>
-      <p>Prueba con un canal de demostración mientras actualizamos los enlaces.</p>
-      <button id="try-demo-blocked-btn" class="action-button">Ver canal de demostración</button>
+      <p>Puedes intentar buscar en RojaDirecta o probar con un canal de demostración.</p>
+      <div class="blocked-actions">
+        <button id="try-rojadirecta-btn" class="action-button rojadirecta-button">Buscar en RojaDirecta</button>
+        <button id="try-demo-blocked-btn" class="action-button">Ver canal de demostración</button>
+      </div>
     `;
     
     // Añadir el mensaje al contenedor del reproductor
@@ -102,7 +105,7 @@ function showBlockedStreamMessage(channelName) {
       playerContainer.appendChild(blockedMsg);
     }
     
-    // Agregar evento al botón
+    // Agregar eventos a los botones
     setTimeout(() => {
       const tryDemoBtn = document.getElementById('try-demo-blocked-btn');
       if (tryDemoBtn) {
@@ -110,6 +113,41 @@ function showBlockedStreamMessage(channelName) {
           const demoChannels = document.querySelectorAll('#channel-list li.demo-channel');
           if (demoChannels.length > 0) {
             demoChannels[0].click();
+          }
+        });
+      }
+      
+      const tryRojaBtn = document.getElementById('try-rojadirecta-btn');
+      if (tryRojaBtn) {
+        tryRojaBtn.addEventListener('click', async () => {
+          tryRojaBtn.disabled = true;
+          tryRojaBtn.textContent = 'Buscando...';
+          
+          try {
+            showStatus(`Buscando ${channelName} en RojaDirecta...`);
+            const url = await getFromRojaDirecta(channelName);
+            
+            if (url) {
+              console.log(`Stream encontrado en RojaDirecta: ${url.substring(0, 50)}...`);
+              blockedMsg.style.display = 'none';
+              
+              // Agregar la URL a la lista de fuentes del canal
+              if (!CHANNELS[channelName]) CHANNELS[channelName] = [];
+              CHANNELS[channelName].push(url);
+              sourceIndex = CHANNELS[channelName].length - 1;
+              
+              // Reproducir el stream
+              attachStream(url);
+            } else {
+              showStatus(`No se encontró stream en RojaDirecta para ${channelName}`);
+              tryRojaBtn.disabled = false;
+              tryRojaBtn.textContent = 'Intentar de nuevo';
+            }
+          } catch (error) {
+            console.error(`Error buscando en RojaDirecta: ${error.message}`);
+            showStatus(`Error buscando en RojaDirecta: ${error.message}`);
+            tryRojaBtn.disabled = false;
+            tryRojaBtn.textContent = 'Intentar de nuevo';
           }
         });
       }
@@ -324,6 +362,17 @@ async function fetchNewLink(channelName) {
     } else if (lower.includes('espn') && !lower.includes('premium') && !lower.includes('2') && !lower.includes('3')) {
       return `https://c2f2zq.fubohd.com/espn/mono.m3u8?token=${token}`;
     }
+  }
+  
+  // Intentar buscar en RojaDirecta si está habilitado
+  try {
+    const rojaUrl = await getFromRojaDirecta(channelName);
+    if (rojaUrl) {
+      console.log(`Usando stream de RojaDirecta para ${channelName}`);
+      return rojaUrl;
+    }
+  } catch (error) {
+    console.warn(`Error buscando en RojaDirecta: ${error.message}`);
   }
   
   // Caso especial DirecTV Sports via scraper backend
@@ -1079,6 +1128,10 @@ function handleStreamError(isAccessError = false, is403Error = false, isFubohdEr
     console.log(`Error 403 detectado para ${currentChannel}. El proveedor bloquea la reproducción.`);
     showStatus(`⛔ El proveedor de ${currentChannel} requiere un token actualizado.`);
     showBlockedStreamMessage(currentChannel);
+    
+    // Añadir botón de búsqueda en RojaDirecta
+    addRojaDirectaSearchButton(currentChannel);
+    
     return; // No intentamos más con este canal si hay un bloqueo activo
   }
   
@@ -1105,12 +1158,18 @@ function handleStreamError(isAccessError = false, is403Error = false, isFubohdEr
         attachStream(url);
       } else {
         showStatus(`No fue posible obtener una fuente para ${currentChannel}. Los servidores pueden estar bloqueando el acceso o el canal no está disponible.`);
-        showTryDemoChannelsMessage();
+        showBlockedStreamMessage(currentChannel);
+        
+        // Añadir botón de búsqueda en RojaDirecta como alternativa
+        addRojaDirectaSearchButton(currentChannel);
       }
     }).catch(err => {
       console.error('Error al buscar fuente en proxy:', err);
       showStatus(`Error al intentar acceder a ${currentChannel}. Los canales deportivos pueden tener restricciones geográficas o de IP.`);
-      showTryDemoChannelsMessage();
+      showBlockedStreamMessage(currentChannel);
+      
+      // Añadir botón de búsqueda en RojaDirecta como alternativa
+      addRojaDirectaSearchButton(currentChannel);
     });
     
     return;
@@ -1148,28 +1207,156 @@ function handleStreamError(isAccessError = false, is403Error = false, isFubohdEr
       }
     }
     
-    fetchNewLink(currentChannel).then(url => {
+    // Intentar primero con RojaDirecta para canales deportivos
+    if (currentChannel.includes('DIRECTV') || 
+        currentChannel.includes('ESPN') || 
+        currentChannel.includes('Movistar') || 
+        currentChannel.includes('Gol') ||
+        currentChannel.includes('Liga 1')) {
+      
+      showStatus(`Intentando buscar ${currentChannel} en RojaDirecta...`);
+      
+      getFromRojaDirecta(currentChannel).then(url => {
+        if (url) {
+          console.log(`Stream encontrado en RojaDirecta para ${currentChannel}`);
+          if (!CHANNELS[currentChannel]) CHANNELS[currentChannel] = [];
+          CHANNELS[currentChannel].push(url);
+          sourceIndex = CHANNELS[currentChannel].length - 1;
+          attachStream(url);
+          return;
+        }
+        
+        // Si RojaDirecta falla, intentamos con el método tradicional
+        continueWithTraditionalSearch();
+      }).catch(err => {
+        console.error('Error al buscar en RojaDirecta:', err);
+        continueWithTraditionalSearch();
+      });
+    } else {
+      continueWithTraditionalSearch();
+    }
+    
+    function continueWithTraditionalSearch() {
+      fetchNewLink(currentChannel).then(url => {
+        if (url) {
+          console.log(`Nueva URL encontrada para ${currentChannel}: ${url.substring(0, 50)}...`);
+          if (!CHANNELS[currentChannel]) CHANNELS[currentChannel] = [];
+          CHANNELS[currentChannel].push(url);
+          sourceIndex = CHANNELS[currentChannel].length - 1;
+          attachStream(url);
+        } else {
+          showStatus('No se encontró ninguna fuente disponible. Intenta con otro canal.');
+          console.error(`No se pudo encontrar enlace para ${currentChannel}`);
+          
+          // Mostrar mensaje y botón para RojaDirecta
+          showBlockedStreamMessage(currentChannel);
+        }
+      }).catch(err => {
+        console.error('Error al buscar fuente:', err);
+        showStatus(`Error al buscar fuente: ${err.message || 'Error desconocido'}. Intenta con otro canal.`);
+        
+        // Mostrar mensaje y botón para RojaDirecta
+        showBlockedStreamMessage(currentChannel);
+      });
+    }
+  }
+}
+
+// Función para obtener streams de RojaDirecta para un canal específico
+async function getFromRojaDirecta(channelName) {
+  try {
+    console.log(`Buscando ${channelName} en RojaDirecta...`);
+    
+    // Realiza una solicitud al endpoint de backend que acabamos de crear
+    const res = await fetch(`${API_BASE_URL}/api/rojadirecta/${encodeURIComponent(channelName)}`);
+    
+    if (!res.ok) {
+      console.warn(`RojaDirecta búsqueda para ${channelName} falló con estado ${res.status}`);
+      return null;
+    }
+    
+    const data = await res.json();
+    
+    if (data.success && data.results && data.results.length > 0) {
+      console.log(`Encontrados ${data.results.length} streams en RojaDirecta`);
+      
+      // Obtener la primera URL válida
+      const stream = data.results[0];
+      
+      // Si hay un token en el resultado, guardarlo para futuras referencias
+      if (stream.token && stream.url.includes('token=')) {
+        console.log(`Token extraído de RojaDirecta para ${channelName}: ${stream.token.substring(0, 15)}...`);
+        
+        // Opcional: actualizar los tokens conocidos
+        // Esta parte es delicada y depende de si quieres mantener los tokens actualizados automáticamente
+        /*
+        if (channelName in KNOWN_TOKENS) {
+          console.log(`Actualizando token para ${channelName} desde RojaDirecta`);
+          KNOWN_TOKENS[channelName] = stream.token;
+        }
+        */
+      }
+      
+      return stream.url;
+    }
+    
+    console.log(`No se encontraron streams en RojaDirecta para ${channelName}`);
+    return null;
+  } catch (error) {
+    console.error(`Error buscando en RojaDirecta: ${error.message}`);
+    return null;
+  }
+}
+
+// Función para añadir botón de búsqueda en RojaDirecta
+function addRojaDirectaSearchButton(channelName) {
+  const playerContainer = document.querySelector('.video-player');
+  if (!playerContainer) return;
+  
+  // Eliminar botones existentes
+  const existingBtn = document.getElementById('rojadirecta-search-btn');
+  if (existingBtn) existingBtn.remove();
+  
+  const searchBtn = document.createElement('button');
+  searchBtn.id = 'rojadirecta-search-btn';
+  searchBtn.className = 'action-button rojadirecta-button';
+  searchBtn.innerHTML = '🔎 Buscar en RojaDirecta';
+  searchBtn.addEventListener('click', async () => {
+    // Mostrar indicador de carga
+    showStatus(`Buscando ${channelName} en RojaDirecta...`);
+    searchBtn.disabled = true;
+    searchBtn.textContent = 'Buscando...';
+    
+    try {
+      // Intentar obtener stream de RojaDirecta
+      const url = await getFromRojaDirecta(channelName);
+      
       if (url) {
-        console.log(`Nueva URL encontrada para ${currentChannel}: ${url.substring(0, 50)}...`);
-        if (!CHANNELS[currentChannel]) CHANNELS[currentChannel] = [];
-        CHANNELS[currentChannel].push(url);
-        sourceIndex = CHANNELS[currentChannel].length - 1;
+        console.log(`Stream encontrado en RojaDirecta: ${url.substring(0, 50)}...`);
+        showStatus(`Stream encontrado en RojaDirecta. Reproduciendo...`);
+        
+        // Agregar la URL a la lista de fuentes del canal
+        if (!CHANNELS[channelName]) CHANNELS[channelName] = [];
+        CHANNELS[channelName].push(url);
+        sourceIndex = CHANNELS[channelName].length - 1;
+        
+        // Reproducir el stream
         attachStream(url);
       } else {
-        showStatus('No se encontró ninguna fuente disponible. Intenta con otro canal.');
-        console.error(`No se pudo encontrar enlace para ${currentChannel}`);
-        
-        // Mostrar botón para intentar otro canal
-        showTryAnotherButton();
+        console.log(`No se encontró stream en RojaDirecta para ${channelName}`);
+        showStatus(`No se encontró stream en RojaDirecta para ${channelName}`);
       }
-    }).catch(err => {
-      console.error('Error al buscar fuente:', err);
-      showStatus(`Error al buscar fuente: ${err.message || 'Error desconocido'}. Intenta con otro canal.`);
-      
-      // Mostrar botón para intentar otro canal
-      showTryAnotherButton();
-    });
-  }
+    } catch (error) {
+      console.error(`Error buscando en RojaDirecta: ${error.message}`);
+      showStatus(`Error buscando en RojaDirecta: ${error.message}`);
+    } finally {
+      // Restaurar el botón
+      searchBtn.disabled = false;
+      searchBtn.innerHTML = '🔎 Buscar en RojaDirecta';
+    }
+  });
+  
+  playerContainer.appendChild(searchBtn);
 }
 
 // Inicializar la aplicación cuando el DOM esté listo
@@ -1237,3 +1424,46 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('Para otros canales, necesitarás actualizar el archivo server.js con tokens nuevos.');
   }, 500);
 });
+
+// Dominios conocidos de agregadores de streams deportivos
+const STREAM_PROVIDERS = {
+  // Fuentes principales
+  fubohd: [
+    'fubohd.com',
+    'fubo.tv',
+    'fubo.me'
+  ],
+  pelotalibre: [
+    'pelotalibrehdtv.com',
+    'pelotalibre.me',
+    'pelotalibre.live',
+    'pelotalibre.net',
+    'pelotalibre.one',
+    'pelotalibre.xyz',
+  ],
+  rojadirecta: [
+    'rojadirecta.watch',
+    'rojadirectaenvivo.com',
+    'rojadirectatv.tv',
+    'rojadirectaenvivo.net',
+    'rojadirecta.unblockit.kim'
+  ],
+  futbolLibre: [
+    'futbollibre.net',
+    'futbol-libre.net',
+    'futbollibrehd.com'
+  ],
+  tvLibre: [
+    'televisionlibre.net',
+    'televisionhd.net',
+    'tvlibre.me'
+  ],
+  // Fuentes secundarias
+  otros: [
+    'tarjetarojatvenvivo.com',
+    'apurogol.net',
+    'librefutbol.com',
+    'televisiongratis.tv',
+    'pirlotvhd.com'
+  ]
+};
