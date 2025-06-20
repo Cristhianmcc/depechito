@@ -166,11 +166,10 @@
             transform: translateY(-50%);
             color: rgba(255, 255, 255, 0.6);
         }    </style>
-    
-    <!-- Primero cargar HLS.js y DASH.js -->
+      <!-- Primero cargar HLS.js y DASH.js -->
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     
-    <!-- Cargar scripts.js antes que auth.js para asegurar que las funciones están disponibles -->
+    <!-- Cargar scripts.js primero para que auth.js pueda acceder a sus funciones globales -->
     <script src="scripts.js"></script>
     
     <!-- Cargar auth.js después para que pueda acceder a las funciones de scripts.js -->

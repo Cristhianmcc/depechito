@@ -742,4 +742,166 @@ app.get('/api/rojadirecta/:query', async (req, res) => {
   }
 });
 
+// Ruta específica para el proxy de streams para dispositivos móviles
+app.get('/api/stream/proxy', async (req, res) => {
+  const channel = req.query.channel;
+  const isMobile = req.query.mobile === 'true';
+  
+  console.log(`Solicitud de proxy recibida para canal: ${channel} (Móvil: ${isMobile})`);
+  
+  if (!channel) {
+    return res.status(400).json({ error: 'Se requiere parámetro de canal' });
+  }
+  
+  // Normalizar el nombre del canal para buscar en mappings
+  const normalizedChannel = channel.toLowerCase()
+    .replace(/\s+/g, '')
+    .replace('directv', 'dsports')
+    .replace('liga1', 'liga1max');
+  
+  // Mapeo de nombres de canales a identificadores de ruta
+  const mapping = {
+    dsportshd: 'dsports',
+    dsports: 'dsports',
+    dsports2hd: 'dsports2',
+    dsports2: 'dsports2',
+    dsportsplus: 'dsportsplus',
+    directvplus: 'dsportsplus',
+    liga1max: 'liga1max',
+    golperu: 'golperu',
+    espn: 'espn',
+    espn2: 'espn2',
+    espn3: 'espn3',
+    espn4: 'espn4',
+    espnpremium: 'espnpremium',
+    movistardeportes: 'movistar'
+  };
+  
+  const slug = mapping[normalizedChannel] || normalizedChannel;
+  
+  try {
+    let streamUrl = '';
+    let token = '';
+    
+    // Primero intentamos usar un enlace directo si está disponible
+    if (DSPORTS_DIRECT_LINKS[slug]) {
+      console.log(`Usando enlace directo para ${slug}`);
+      streamUrl = DSPORTS_DIRECT_LINKS[slug];
+      
+      // Extraer token del enlace directo
+      const tokenMatch = streamUrl.match(/token=([^&]+)/);
+      if (tokenMatch) {
+        token = tokenMatch[1];
+      }
+    } else {
+      // Fallback: Intentar redirigir a la ruta específica
+      return res.redirect(`/api/stream/${slug}?mobile=true`);
+    }
+    
+    // Devolvemos la URL y el token
+    return res.json({ 
+      url: streamUrl, 
+      token: token,
+      channel: channel,
+      isMobile: isMobile
+    });
+  } catch (error) {
+    console.error(`Error obteniendo stream para ${channel}:`, error);
+    return res.status(500).json({ 
+      error: 'Error al obtener el stream', 
+      message: error.message 
+    });
+  }
+});
+
+// Ruta específica para obtener enlaces de stream adaptados para móviles
+app.get('/api/mobile/stream', async (req, res) => {
+  const channelName = req.query.channel;
+  const userAgent = req.query.device || req.headers['user-agent'];
+  
+  console.log(`[MÓVIL] Solicitud de stream para: ${channelName}`);
+  console.log(`[MÓVIL] User-Agent: ${userAgent?.substring(0, 100) || 'no disponible'}`);
+  
+  if (!channelName) {
+    return res.status(400).json({ error: 'Se requiere parámetro de canal' });
+  }
+  
+  // Normalizar el nombre del canal
+  const normalizedChannel = channelName.toLowerCase()
+    .replace(/\s+/g, '')
+    .replace('directv', 'dsports')
+    .replace('liga1', 'liga1max');
+  
+  // Mapeo de nombres de canales a identificadores para móviles
+  const mobileMapping = {
+    // Canales de DirecTV Sports
+    dsportshd: 'dsports_mobile',
+    dsports: 'dsports_mobile',
+    dsports2hd: 'dsports2_mobile',
+    dsports2: 'dsports2_mobile',
+    dsportsplus: 'dsportsplus_mobile',
+    directvplus: 'dsportsplus_mobile',
+    
+    // Otros canales
+    liga1max: 'liga1max_mobile',
+    golperu: 'golperu_mobile',
+    espn: 'espn_mobile',
+    espn2: 'espn2_mobile',
+    espn3: 'espn3_mobile',
+    espn4: 'espn4_mobile',
+    espnpremium: 'espnpremium_mobile',
+    movistardeportes: 'movistar_mobile'
+  };
+  
+  const channelId = mobileMapping[normalizedChannel] || normalizedChannel;
+  
+  try {
+    // Lista de URLs específicas para móviles (actualizar manualmente)
+    const MOBILE_STREAM_URLS = {
+      dsports_mobile: "https://ag9wzq.fubohd.com:443/dsports/mono.m3u8?token=61cfa088b097200767adf86d505b4b9378c0cbc2-5-1750443916-1750425916",
+      dsports2_mobile: "https://ag9wzq.fubohd.com:443/dsports2/mono.m3u8?token=ec806f16b0201dfd2b8ea8d65e43b258c9eb5eaa-c3-1750445977-1750427977",
+      dsportsplus_mobile: "https://ag9wzq.fubohd.com:443/dsportsplus/mono.m3u8?token=6be5b52b874cc027af845465a1066be6be940865-d7-1750446014-1750428014",
+      liga1max_mobile: "https://ag9wzq.fubohd.com:443/liga1max/mono.m3u8?token=d38e5213144afeaf29de7d39109cd37162b57c3b-65-1750446275-1750428275",
+      espn_mobile: "https://ag9wzq.fubohd.com:443/espn/mono.m3u8?token=9b9586272b50bb1ac4c6be0278fdfdbe3994dccf-de-1750446061-1750428061",
+      espn2_mobile: "https://ag9wzq.fubohd.com:443/espn2/mono.m3u8?token=85cdc5ecd8f998f9013d805e252604e795366a5c-9f-1750446099-1750428099",
+      espn3_mobile: "https://ag9wzq.fubohd.com:443/espn3/mono.m3u8?token=66342a841c5d31582050612be72f4de456f29844-fd-1750446130-1750428130"
+    };
+    
+    // Verificar si tenemos una URL específica para móviles
+    if (MOBILE_STREAM_URLS[channelId]) {
+      console.log(`[MÓVIL] Usando URL específica para móviles para ${channelName}`);
+      const streamUrl = MOBILE_STREAM_URLS[channelId];
+      
+      // Extraer token de la URL
+      let token = null;
+      if (streamUrl.includes('token=')) {
+        const tokenMatch = streamUrl.match(/token=([^&]+)/);
+        token = tokenMatch ? tokenMatch[1] : null;
+      }
+      
+      return res.json({
+        url: streamUrl,
+        token: token,
+        mobile: true,
+        channel: channelName
+      });
+    } else {
+      // Si no hay URL específica para móviles, intentamos encontrar una compatible
+      console.log(`[MÓVIL] No hay URL específica para ${channelName}, buscando alternativas`);
+      
+      // Por ahora, devolvemos un mensaje de error
+      return res.status(404).json({
+        error: 'No se encontró una URL específica para móviles',
+        message: 'Intenta con otro canal o usa la versión para desktop'
+      });
+    }
+  } catch (error) {
+    console.error(`[MÓVIL] Error obteniendo stream para ${channelName}:`, error);
+    return res.status(500).json({
+      error: 'Error al obtener el stream para móviles',
+      message: error.message
+    });
+  }
+});
+
 app.listen(PORT, () => console.log(`Scraper proxy running on http://localhost:${PORT}`));
