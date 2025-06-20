@@ -3,6 +3,24 @@
 (function initializeGlobalFunctions() {
   console.log('Inicializando funciones globales en scripts.js');
   
+  // Detectar si es un dispositivo móvil
+  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  window.isMobileDevice = isMobile;
+  console.log(`Tipo de dispositivo detectado: ${isMobile ? 'Móvil' : 'Desktop'}`);
+  
+  // Verificar si hay un parámetro de forzado de actualización en la URL
+  const urlParams = new URLSearchParams(window.location.search);
+  const forceRefresh = urlParams.get('force_refresh');
+  
+  if (forceRefresh === 'true') {
+    console.log('Forzando actualización por parámetro URL');
+    // Limpiar todo el localStorage para una actualización completa
+    localStorage.clear();
+    // Recargar sin el parámetro para evitar bucles
+    window.location.href = window.location.pathname;
+    return;
+  }
+  
   // Forzar limpieza de todos los tokens en caché
   // Esto asegura que se usen los tokens actualizados en KNOWN_TOKENS
   setTimeout(() => {
@@ -11,6 +29,25 @@
       clearAllTokenCache();
       localStorage.setItem('tokens_version', TOKENS_VERSION.toString());
       console.log(`Versión de tokens actualizada a: ${TOKENS_VERSION}`);
+      
+      // Limpieza adicional para dispositivos móviles
+      if (isMobile) {
+        console.log('Realizando limpieza adicional para dispositivo móvil');
+        try {
+          // Eliminar todas las claves relacionadas con tokens
+          Object.keys(localStorage).forEach(key => {
+            if (key.includes('token') || key.includes('Token')) {
+              localStorage.removeItem(key);
+            }
+          });
+          
+          // Establecer marca de tiempo de última limpieza
+          localStorage.setItem('last_mobile_cleanup', Date.now().toString());
+          console.log('Limpieza para móvil completada');
+        } catch (error) {
+          console.error('Error durante limpieza para móvil:', error);
+        }
+      }
     }
   }, 500);
   
@@ -90,17 +127,42 @@ function showWelcomeMessage() {
     welcomeMsg = document.createElement('div');
     welcomeMsg.id = 'welcome-msg';
     welcomeMsg.className = 'welcome-message';
+    
+    // Contenido adaptado según si es móvil o desktop
+    const mobileClass = window.isMobileDevice ? 'mobile-view' : '';
     welcomeMsg.innerHTML = `
       <h3>¡Bienvenido al Reproductor de Canales!</h3>
       <p>Selecciona un canal desde la lista para comenzar a ver.</p>
-      <p>Recomendamos empezar con los canales de <span class="highlight">NASA TV Public</span> o <span class="highlight">Red Bull TV</span> que suelen funcionar mejor.</p>
-      <p class="update-note">Los tokens de todos los canales han sido actualizados (${new Date().toLocaleString()}).</p>
+      <p class="${mobileClass}">Recomendamos empezar con los canales de <span class="highlight">NASA TV Public</span> o <span class="highlight">Red Bull TV</span> que suelen funcionar mejor.</p>
+      <p class="update-note ${mobileClass}">Los tokens de todos los canales han sido actualizados (${new Date().toLocaleString()}).</p>
+      <div class="action-buttons">
+        <button id="clear-cache-btn" class="action-button refresh-button">🔄 Actualizar Tokens</button>
+        ${window.isMobileDevice ? '<p class="mobile-note">Usa este botón si los canales no funcionan correctamente</p>' : ''}
+      </div>
     `;
     
     // Añadir el mensaje al contenedor del reproductor
     const playerContainer = document.querySelector('.video-player');
     if (playerContainer) {
       playerContainer.appendChild(welcomeMsg);
+      
+      // Agregar funcionalidad al botón de limpieza de caché
+      document.getElementById('clear-cache-btn').addEventListener('click', function() {
+        this.disabled = true;
+        this.textContent = '⏳ Actualizando...';
+        
+        // Limpiar caché y recargar
+        clearAllTokenCache();
+        StorageSystem.setItem('tokens_version', TOKENS_VERSION.toString());
+        StorageSystem.setItem('last_mobile_cleanup', Date.now().toString());
+        
+        showStatus('Tokens actualizados. Recargando página...');
+        
+        // Retrasar la recarga para que el usuario vea el mensaje
+        setTimeout(() => {
+          window.location.href = window.location.pathname + '?force_refresh=true';
+        }, 1500);
+      });
     }
   }
   
@@ -286,23 +348,153 @@ function addPlayButton() {
 // Estas funciones manejan el almacenamiento y recuperación de tokens en localStorage
 // para evitar solicitudes innecesarias al backend
 
+// Sistema avanzado de almacenamiento con respaldo
+// Implementa múltiples mecanismos de almacenamiento para garantizar compatibilidad entre dispositivos
+const StorageSystem = {
+  // Verifica si localStorage está disponible y funciona correctamente
+  isLocalStorageAvailable: function() {
+    try {
+      const test = '__storage_test__';
+      localStorage.setItem(test, test);
+      const result = localStorage.getItem(test) === test;
+      localStorage.removeItem(test);
+      return result;
+    } catch (e) {
+      return false;
+    }
+  },
+  
+  // Verifica si sessionStorage está disponible
+  isSessionStorageAvailable: function() {
+    try {
+      const test = '__storage_test__';
+      sessionStorage.setItem(test, test);
+      const result = sessionStorage.getItem(test) === test;
+      sessionStorage.removeItem(test);
+      return result;
+    } catch (e) {
+      return false;
+    }
+  },
+  
+  // Almacenamiento en memoria como último recurso
+  memoryStorage: {},
+  
+  // Guarda un valor utilizando el mejor método disponible
+  setItem: function(key, value) {
+    try {
+      if (this.isLocalStorageAvailable()) {
+        localStorage.setItem(key, value);
+        return true;
+      } else if (this.isSessionStorageAvailable()) {
+        console.warn('Usando sessionStorage como respaldo (se perderá al cerrar pestaña)');
+        sessionStorage.setItem(key, value);
+        return true;
+      } else {
+        console.warn('Usando almacenamiento en memoria (se perderá al recargar)');
+        this.memoryStorage[key] = value;
+        return true;
+      }
+    } catch (error) {
+      console.error('Error al guardar datos:', error);
+      // Último intento: guardar en memoria
+      try {
+        this.memoryStorage[key] = value;
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+  },
+  
+  // Obtiene un valor utilizando el mejor método disponible
+  getItem: function(key) {
+    try {
+      if (this.isLocalStorageAvailable() && localStorage.getItem(key) !== null) {
+        return localStorage.getItem(key);
+      } else if (this.isSessionStorageAvailable() && sessionStorage.getItem(key) !== null) {
+        return sessionStorage.getItem(key);
+      } else if (key in this.memoryStorage) {
+        return this.memoryStorage[key];
+      }
+      return null;
+    } catch (error) {
+      console.error('Error al recuperar datos:', error);
+      // Intento de respaldo en memoria
+      if (key in this.memoryStorage) {
+        return this.memoryStorage[key];
+      }
+      return null;
+    }
+  },
+  
+  // Elimina un valor de todos los almacenamientos
+  removeItem: function(key) {
+    try {
+      if (this.isLocalStorageAvailable()) {
+        localStorage.removeItem(key);
+      }
+      if (this.isSessionStorageAvailable()) {
+        sessionStorage.removeItem(key);
+      }
+      delete this.memoryStorage[key];
+      return true;
+    } catch (error) {
+      console.error('Error al eliminar datos:', error);
+      return false;
+    }
+  },
+  
+  // Limpia todo el almacenamiento
+  clear: function() {
+    try {
+      if (this.isLocalStorageAvailable()) {
+        localStorage.clear();
+      }
+      if (this.isSessionStorageAvailable()) {
+        sessionStorage.clear();
+      }
+      this.memoryStorage = {};
+      return true;
+    } catch (error) {
+      console.error('Error al limpiar almacenamiento:', error);
+      return false;
+    }
+  }
+};
+
 // Función para obtener un token válido desde la caché
 function getValidCachedToken(channelName) {
   try {
     // Verificar versión del token
-    const savedTokensVersion = localStorage.getItem('tokens_version');
+    const savedTokensVersion = StorageSystem.getItem('tokens_version');
     
     // Si la versión ha cambiado, invalidar todas las cachés de tokens
     if (!savedTokensVersion || parseInt(savedTokensVersion) < TOKENS_VERSION) {
       console.log(`Versión de tokens actualizada: ${savedTokensVersion || 'ninguna'} -> ${TOKENS_VERSION}. Limpiando caché de tokens.`);
       clearAllTokenCache();
-      localStorage.setItem('tokens_version', TOKENS_VERSION.toString());
+      StorageSystem.setItem('tokens_version', TOKENS_VERSION.toString());
       return null;
+    }
+    
+    // Dispositivos móviles: verificar si ha pasado más de 30 minutos desde la última limpieza
+    if (window.isMobileDevice) {
+      const lastCleanup = StorageSystem.getItem('last_mobile_cleanup');
+      if (lastCleanup) {
+        const elapsed = Date.now() - parseInt(lastCleanup);
+        // 30 minutos = 1800000 ms
+        if (elapsed > 1800000) {
+          console.log('Han pasado más de 30 minutos desde la última limpieza en móvil. Renovando tokens...');
+          clearAllTokenCache();
+          StorageSystem.setItem('last_mobile_cleanup', Date.now().toString());
+          return null;
+        }
+      }
     }
     
     // Obtener el token almacenado para el canal
     const cacheKey = `token_${channelName.replace(/\s+/g, '_').toLowerCase()}`;
-    const cachedData = localStorage.getItem(cacheKey);
+    const cachedData = StorageSystem.getItem(cacheKey);
     
     if (!cachedData) {
       console.log(`No hay token en caché para ${channelName}`);
@@ -315,12 +507,16 @@ function getValidCachedToken(channelName) {
     const now = Date.now();
     const safetyMargin = 5 * 60 * 1000; // 5 minutos en milisegundos
     
-    if (tokenData.expiresAt && (tokenData.expiresAt - safetyMargin) > now) {
+    // Para dispositivos móviles, usamos un margen de seguridad mayor (15 minutos)
+    const mobileSafetyMargin = 15 * 60 * 1000;
+    const actualMargin = window.isMobileDevice ? mobileSafetyMargin : safetyMargin;
+    
+    if (tokenData.expiresAt && (tokenData.expiresAt - actualMargin) > now) {
       console.log(`Usando token en caché para ${channelName} (válido por ${Math.floor((tokenData.expiresAt - now) / 60000)} minutos más)`);
       return tokenData.token;
     } else {
       console.log(`Token en caché para ${channelName} ha expirado o está por expirar`);
-      localStorage.removeItem(cacheKey);
+      StorageSystem.removeItem(cacheKey);
       return null;
     }
   } catch (error) {
@@ -333,7 +529,7 @@ function getValidCachedToken(channelName) {
 function clearTokenCache(channelName) {
   try {
     const cacheKey = `token_${channelName.replace(/\s+/g, '_').toLowerCase()}`;
-    localStorage.removeItem(cacheKey);
+    StorageSystem.removeItem(cacheKey);
     console.log(`Token en caché para ${channelName} eliminado`);
     return true;
   } catch (error) {
@@ -345,15 +541,35 @@ function clearTokenCache(channelName) {
 // Función para limpiar todos los tokens en caché
 function clearAllTokenCache() {
   try {
-    // Buscar todas las claves que empiezan con token_
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith('token_')) {
-        const channelName = key.replace('token_', '').replace(/_/g, ' ');
-        console.log(`Eliminando token en caché para ${channelName}`);
-        localStorage.removeItem(key);
+    // Buscar todas las claves que empiezan con token_ en localStorage
+    if (StorageSystem.isLocalStorageAvailable()) {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith('token_')) {
+          const channelName = key.replace('token_', '').replace(/_/g, ' ');
+          console.log(`Eliminando token en caché para ${channelName}`);
+          localStorage.removeItem(key);
+        }
       }
     }
+    
+    // Buscar todas las claves que empiezan con token_ en sessionStorage
+    if (StorageSystem.isSessionStorageAvailable()) {
+      for (let i = 0; i < sessionStorage.length; i++) {
+        const key = sessionStorage.key(i);
+        if (key && key.startsWith('token_')) {
+          sessionStorage.removeItem(key);
+        }
+      }
+    }
+    
+    // Limpiar memoria
+    Object.keys(StorageSystem.memoryStorage).forEach(key => {
+      if (key.startsWith('token_')) {
+        delete StorageSystem.memoryStorage[key];
+      }
+    });
+    
     console.log('Caché de tokens limpiada correctamente');
     return true;
   } catch (error) {
@@ -379,10 +595,11 @@ function cacheToken(channelName, token, ttlMinutes = 60) {
       token: token,
       timestamp: now,
       expiresAt: expiresAt,
-      channel: channelName
+      channel: channelName,
+      device: window.isMobileDevice ? 'mobile' : 'desktop'
     };
     
-    localStorage.setItem(cacheKey, JSON.stringify(tokenData));
+    StorageSystem.setItem(cacheKey, JSON.stringify(tokenData));
     console.log(`Token para ${channelName} guardado en caché (expira en ${ttlMinutes} minutos)`);
     
     return true;
@@ -1704,11 +1921,22 @@ function handleStreamError(isAccessError = false, is403Error = false, isFubohdEr
         const tokenErrorMsg = document.createElement('div');
         tokenErrorMsg.id = 'token-error-msg';
         tokenErrorMsg.className = 'token-error-message';
-        tokenErrorMsg.innerHTML = `
-          <p><strong>Error 403:</strong> El token para ${currentChannel} ha expirado o es inválido.</p>
-          <p>Se ha limpiado la caché del token. Intente nuevamente.</p>
-          <button id="retry-channel-btn" class="action-button">Reintentar</button>
-        `;
+        
+        // Personalizar mensaje según el dispositivo
+        if (window.isMobileDevice) {
+          tokenErrorMsg.innerHTML = `
+            <p><strong>Error 403:</strong> El token para ${currentChannel} ha expirado o es inválido.</p>
+            <p>Se ha detectado que estás usando un dispositivo móvil. En algunos casos, esto puede causar problemas con los tokens.</p>
+            <button id="retry-channel-btn" class="action-button">Reintentar</button>
+            <button id="force-refresh-btn" class="action-button refresh-button">🔄 Forzar Actualización Completa</button>
+          `;
+        } else {
+          tokenErrorMsg.innerHTML = `
+            <p><strong>Error 403:</strong> El token para ${currentChannel} ha expirado o es inválido.</p>
+            <p>Se ha limpiado la caché del token. Intente nuevamente.</p>
+            <button id="retry-channel-btn" class="action-button">Reintentar</button>
+          `;
+        }
         
         // Eliminar mensajes existentes
         const existingMsgs = playerContainer.querySelectorAll('#token-error-msg');
@@ -1716,11 +1944,23 @@ function handleStreamError(isAccessError = false, is403Error = false, isFubohdEr
         
         playerContainer.appendChild(tokenErrorMsg);
         
-        // Agregar función al botón
+        // Agregar función al botón de reintentar
         document.getElementById('retry-channel-btn').addEventListener('click', () => {
           tokenErrorMsg.remove();
           loadChannel(currentChannel);
         });
+        
+        // Agregar función al botón de actualización completa (solo en móvil)
+        if (window.isMobileDevice) {
+          document.getElementById('force-refresh-btn').addEventListener('click', () => {
+            clearAllTokenCache();
+            StorageSystem.clear(); // Limpieza completa
+            showStatus('Realizando actualización completa...');
+            setTimeout(() => {
+              window.location.href = window.location.pathname + '?force_refresh=true';
+            }, 1000);
+          });
+        }
       }
     }
     
@@ -1991,9 +2231,61 @@ function cleanupExpiredTokens() {
 setInterval(cleanupExpiredTokens, 30 * 60 * 1000);
 
 // También ejecutar al iniciar la aplicación
+// Crear botón flotante para limpiar caché (especialmente útil en dispositivos móviles)
+function createFloatingCacheButton() {
+  // Solo crear para dispositivos móviles
+  if (!window.isMobileDevice) return;
+  
+  const existingButton = document.getElementById('floating-cache-btn');
+  if (existingButton) return;
+  
+  const floatingButton = document.createElement('button');
+  floatingButton.id = 'floating-cache-btn';
+  floatingButton.className = 'floating-button refresh-button';
+  floatingButton.innerHTML = '🔄';
+  floatingButton.title = 'Actualizar Tokens';
+  
+  // Estilo para el botón flotante
+  floatingButton.style.position = 'fixed';
+  floatingButton.style.bottom = '20px';
+  floatingButton.style.right = '20px';
+  floatingButton.style.zIndex = '1000';
+  floatingButton.style.width = '50px';
+  floatingButton.style.height = '50px';
+  floatingButton.style.borderRadius = '50%';
+  floatingButton.style.fontSize = '24px';
+  floatingButton.style.backgroundColor = '#2e7d32';
+  floatingButton.style.color = 'white';
+  floatingButton.style.border = 'none';
+  floatingButton.style.boxShadow = '0 4px 8px rgba(0,0,0,0.3)';
+  
+  // Agregar funcionalidad al botón
+  floatingButton.addEventListener('click', function() {
+    this.disabled = true;
+    this.textContent = '⏳';
+    
+    // Limpiar todos los tokens y recargar
+    clearAllTokenCache();
+    StorageSystem.setItem('tokens_version', TOKENS_VERSION.toString());
+    StorageSystem.setItem('last_mobile_cleanup', Date.now().toString());
+    
+    showStatus('Tokens actualizados. Recargando página...');
+    
+    // Retrasar la recarga para que el usuario vea el mensaje
+    setTimeout(() => {
+      window.location.href = window.location.pathname + '?force_refresh=true';
+    }, 1000);
+  });
+  
+  document.body.appendChild(floatingButton);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   // Ejecutar limpieza al inicio (después de 10 segundos para no interferir con la carga)
   setTimeout(cleanupExpiredTokens, 10000);
+  
+  // Crear botón flotante para dispositivos móviles
+  setTimeout(createFloatingCacheButton, 2000);
   
   console.log('=== SCRIPTS.JS INICIALIZADO ===');
   console.log('Esperando autorización de acceso...');

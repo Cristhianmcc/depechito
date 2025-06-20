@@ -211,6 +211,17 @@ footer {
         width: 100%;
         margin-bottom: 20px;
     }
+    
+    /* Estilos específicos para móvil */
+    .mobile-view {
+        font-size: 14px;
+    }
+    
+    .mobile-note {
+        font-size: 12px;
+        color: #aaa;
+        margin-top: 5px;
+    }
 }
 
 /* Estilos para mensajes de bienvenida y actualización */
@@ -255,6 +266,43 @@ footer {
     margin-bottom: 10px;
 }
 
+/* Estilos para botones de acción */
+.action-buttons {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-top: 15px;
+}
+
+.action-button {
+    padding: 8px 16px;
+    margin: 5px;
+    border: none;
+    border-radius: 4px;
+    background-color: #2196F3;
+    color: white;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.action-button:hover {
+    background-color: #0d8aee;
+}
+
+.action-button:disabled {
+    background-color: #7db7e8;
+    cursor: not-allowed;
+}
+
+.refresh-button {
+    background-color: #2e7d32;
+}
+
+.refresh-button:hover {
+    background-color: #1b5e20;
+}
+
 /* Animación para efectos de pulso */
 @keyframes pulse {
     0% { opacity: 1; }
@@ -264,5 +312,32 @@ footer {
 
 .update-notification {
     animation: pulse 2s infinite;
+}
+
+/* Botón flotante para móviles */
+.floating-button {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1000;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    font-size: 24px;
+    background-color: #2e7d32;
+    color: white;
+    border: none;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    cursor: pointer;
+    transition: transform 0.2s, background-color 0.3s;
+}
+
+.floating-button:hover {
+    transform: scale(1.1);
+    background-color: #1b5e20;
+}
+
+.floating-button:active {
+    transform: scale(0.95);
 }
 
