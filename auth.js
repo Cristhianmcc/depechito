@@ -14,11 +14,24 @@ class AccessManager {
     
     // Limpiar tokens expirados al iniciar
     this.cleanExpiredTokens();
-  }
-    // Cargar tokens almacenados
+  }    // Cargar tokens almacenados
   loadTokens() {
     try {
-      const storedTokens = localStorage.getItem('depechito_access_tokens');
+      // Intentar cargar primero con la nueva clave 'machetero_access_tokens'
+      let storedTokens = localStorage.getItem('machetero_access_tokens');
+      
+      // Si no existe, intentar con la clave antigua 'depechito_access_tokens' para migración
+      if (!storedTokens) {
+        const oldTokens = localStorage.getItem('depechito_access_tokens');
+        if (oldTokens) {
+          console.log('Encontrados tokens con nombre antiguo, migrando...');
+          // Si encontramos tokens con el nombre antiguo, los migramos al nuevo
+          localStorage.setItem('machetero_access_tokens', oldTokens);
+          localStorage.removeItem('depechito_access_tokens');
+          storedTokens = oldTokens;
+        }
+      }
+      
       if (!storedTokens) {
         console.log('No hay tokens almacenados en localStorage');
         return {};
@@ -31,20 +44,27 @@ class AccessManager {
       console.error('Error al cargar tokens:', error);
       return {};
     }
-  }
-    // Guardar tokens en localStorage
+  }    // Guardar tokens en localStorage
   saveTokens() {
     try {
-      localStorage.setItem('depechito_access_tokens', JSON.stringify(this.tokens));
+      // Usar la nueva clave de localStorage
+      localStorage.setItem('machetero_access_tokens', JSON.stringify(this.tokens));
       console.log('Tokens guardados correctamente:', Object.keys(this.tokens).length, 'tokens');
     } catch (error) {
       console.error('Error al guardar tokens:', error);
     }
   }
-  
-  // Verificar si un token es válido
+    // Verificar si un token es válido
   isValidToken(token) {
-    if (!token || !this.tokens[token]) return false;
+    console.log(`Verificando token: ${token.substring(0, 5)}... en lista de ${Object.keys(this.tokens).length} tokens`);
+    
+    // Recargar tokens desde localStorage para asegurar que tenemos los más recientes
+    this.tokens = this.loadTokens();
+    
+    if (!token || !this.tokens[token]) {
+      console.log(`Token no encontrado en la lista`);
+      return false;
+    }
     
     const tokenData = this.tokens[token];
     const now = new Date().getTime();
@@ -52,11 +72,13 @@ class AccessManager {
     // Verificar si el token ha expirado
     if (tokenData.expiresAt && now > tokenData.expiresAt) {
       // Token expirado, eliminarlo
+      console.log(`Token expirado - eliminando`);
       delete this.tokens[token];
       this.saveTokens();
       return false;
     }
     
+    console.log(`Token válido - expira en ${Math.floor((tokenData.expiresAt - now) / (60 * 60 * 1000))} horas`);
     return true;
   }
     // Generar un nuevo token de acceso
@@ -85,10 +107,9 @@ class AccessManager {
     // Verificar credenciales de administrador
   verifyAdmin(password) {
     this.isAdmin = (password === ADMIN_PASSWORD);
-    
-    if (this.isAdmin) {
+      if (this.isAdmin) {
       // Almacenar estado de administrador en sessionStorage (se borra al cerrar pestaña)
-      sessionStorage.setItem('depechito_admin', 'true');
+      sessionStorage.setItem('machetero_admin', 'true');
       console.log('Acceso de administrador concedido');
       
       // Asegurar que tenemos los tokens más recientes
@@ -97,10 +118,19 @@ class AccessManager {
     
     return this.isAdmin;
   }
-    // Comprobar si el usuario es administrador
+  // Comprobar si el usuario es administrador
   checkAdminStatus() {
     // Verificar si ya está autenticado como admin en esta sesión
-    this.isAdmin = sessionStorage.getItem('depechito_admin') === 'true';
+    // Intentar primero con la nueva clave
+    this.isAdmin = sessionStorage.getItem('machetero_admin') === 'true';
+    
+    // Si no hay estado con la nueva clave, verificar la antigua y migrar
+    if (!this.isAdmin && sessionStorage.getItem('depechito_admin') === 'true') {
+      console.log('Encontrado estado de admin con clave antigua, migrando...');
+      sessionStorage.setItem('machetero_admin', 'true');
+      sessionStorage.removeItem('depechito_admin');
+      this.isAdmin = true;
+    }
     
     if (this.isAdmin) {
       // Si es administrador, recargar los tokens desde localStorage
@@ -171,22 +201,24 @@ class AccessManager {
     
     return result;
   }
-  
-  // Método de diagnóstico para depurar problemas con tokens
+    // Método de diagnóstico para depurar problemas con tokens
   diagnosticTokens() {
     try {
-      const storedData = localStorage.getItem('depechito_access_tokens');
+      const storedDataNew = localStorage.getItem('machetero_access_tokens');
+      const storedDataOld = localStorage.getItem('depechito_access_tokens');
       const memoryTokensCount = Object.keys(this.tokens).length;
       let storedTokensCount = 0;
       
       console.log('== DIAGNÓSTICO DE TOKENS ==');
       console.log('Tokens en memoria:', memoryTokensCount);
       
-      if (storedData) {
+      // Mostrar tokens desde la nueva clave
+      if (storedDataNew) {
         try {
-          const parsedData = JSON.parse(storedData);
+          const parsedData = JSON.parse(storedDataNew);
           storedTokensCount = Object.keys(parsedData).length;
-          console.log('Tokens en localStorage:', storedTokensCount);
+          console.log('Tokens en localStorage (nueva clave):', storedTokensCount);
+          console.log('Lista de tokens (nueva clave):', Object.keys(parsedData));
           
           if (storedTokensCount !== memoryTokensCount) {
             console.warn('¡Advertencia! Diferencia entre tokens en memoria y localStorage');
@@ -204,33 +236,73 @@ class AccessManager {
           
           console.log('Tokens expirados:', expiredCount);
         } catch (e) {
-          console.error('Error al parsear datos de localStorage:', e);
+          console.error('Error al parsear datos de localStorage (nueva clave):', e);
         }
       } else {
-        console.log('No hay datos en localStorage');
+        console.log('No hay datos en localStorage (nueva clave)');
+      }
+      
+      // Verificar si hay datos en la clave antigua
+      if (storedDataOld) {
+        console.log('ATENCIÓN: Se encontraron tokens en la clave antigua de localStorage');
+        try {
+          const parsedOldData = JSON.parse(storedDataOld);
+          console.log('Tokens en localStorage (clave antigua):', Object.keys(parsedOldData).length);
+          console.log('Lista de tokens (clave antigua):', Object.keys(parsedOldData));
+          
+          // Migrar tokens antiguos a la nueva clave
+          console.log('Migrando tokens de clave antigua a nueva...');
+          localStorage.setItem('machetero_access_tokens', storedDataOld);
+          localStorage.removeItem('depechito_access_tokens');
+          
+          // Recargar tokens
+          this.tokens = JSON.parse(storedDataOld);
+          console.log('Tokens migrados y recargados en memoria');
+        } catch (e) {
+          console.error('Error al parsear datos de localStorage (clave antigua):', e);
+        }
       }
       
       // Verificar token del usuario actual
-      const userToken = localStorage.getItem('depechito_user_token');
+      const userToken = localStorage.getItem('machetero_user_token');
+      const oldUserToken = localStorage.getItem('depechito_user_token');
+      
       if (userToken) {
-        console.log('Token de usuario actual:', userToken.substring(0, 5) + '...');
+        console.log('Token de usuario actual (nueva clave):', userToken.substring(0, 5) + '...');
         console.log('¿Es válido?', this.isValidToken(userToken));
+      } else if (oldUserToken) {
+        console.log('Token de usuario actual (clave antigua):', oldUserToken.substring(0, 5) + '...');
+        console.log('¿Es válido?', this.isValidToken(oldUserToken));
+        
+        // Migrar el token antiguo al nuevo
+        localStorage.setItem('machetero_user_token', oldUserToken);
+        localStorage.removeItem('depechito_user_token');
+        console.log('Token de usuario migrado a la nueva clave');
       } else {
         console.log('No hay token de usuario actual');
       }
       
       // Verificar estado de administrador
       console.log('Estado de administrador:', this.isAdmin);
-      console.log('sessionStorage admin:', sessionStorage.getItem('depechito_admin'));
+      console.log('sessionStorage admin (nueva clave):', sessionStorage.getItem('machetero_admin'));
+      console.log('sessionStorage admin (clave antigua):', sessionStorage.getItem('depechito_admin'));
+      
+      // Migrar estado de admin si es necesario
+      if (!sessionStorage.getItem('machetero_admin') && sessionStorage.getItem('depechito_admin') === 'true') {
+        sessionStorage.setItem('machetero_admin', 'true');
+        sessionStorage.removeItem('depechito_admin');
+        console.log('Estado de administrador migrado a la nueva clave');
+      }
       
       console.log('== FIN DIAGNÓSTICO ==');
       
       return {
         memoryTokens: memoryTokensCount,
-        storedTokens: storedTokensCount,
+        storedTokensNew: storedDataNew ? Object.keys(JSON.parse(storedDataNew)).length : 0,
+        storedTokensOld: storedDataOld ? Object.keys(JSON.parse(storedDataOld)).length : 0,
         isAdmin: this.isAdmin,
-        userToken: userToken ? userToken.substring(0, 5) + '...' : null,
-        userTokenValid: userToken ? this.isValidToken(userToken) : false
+        userToken: userToken ? userToken.substring(0, 5) + '...' : (oldUserToken ? oldUserToken.substring(0, 5) + '...' : null),
+        userTokenValid: userToken ? this.isValidToken(userToken) : (oldUserToken ? this.isValidToken(oldUserToken) : false)
       };
     } catch (e) {
       console.error('Error en diagnóstico:', e);
@@ -299,8 +371,7 @@ function createLoginUI() {
       document.getElementById(`${btn.dataset.tab}-tab`).classList.add('active');
     });
   });
-  
-  // Evento para validar token
+    // Evento para validar token
   document.getElementById('validate-token').addEventListener('click', () => {
     const token = document.getElementById('access-token').value.trim();
     const messageEl = document.getElementById('token-message');
@@ -311,15 +382,29 @@ function createLoginUI() {
       return;
     }
     
-    if (accessManager.isValidToken(token)) {
+    console.log(`Intentando validar token: ${token.substring(0, 5)}...`);
+    
+    // Forzar la recarga de tokens desde localStorage antes de validar
+    accessManager.tokens = accessManager.loadTokens();
+      if (accessManager.isValidToken(token)) {
       // Token válido, guardar en localStorage y recargar
-      localStorage.setItem('depechito_user_token', token);
+      localStorage.setItem('machetero_user_token', token);
+      // Eliminar el token antiguo si existe
+      localStorage.removeItem('depechito_user_token');
+      
       messageEl.textContent = 'Código válido. Accediendo...';
       messageEl.className = 'message success';
+      
+      console.log('Acceso concedido con token válido');
       setTimeout(() => window.location.reload(), 1000);
     } else {
+      console.log('Token inválido o expirado');
       messageEl.textContent = 'Código inválido o expirado.';
       messageEl.className = 'message error';
+      
+      // Diagnóstico del problema
+      const diagnosis = accessManager.diagnosticTokens();
+      console.log('Diagnóstico de tokens:', diagnosis);
     }
   });
   
@@ -472,12 +557,11 @@ function createAdminPanel() {
   });
   
   // Compartir token
-  document.getElementById('share-token').addEventListener('click', () => {
-    const token = document.getElementById('new-token').textContent;
+  document.getElementById('share-token').addEventListener('click', () => {    const token = document.getElementById('new-token').textContent;
     const expiresText = document.getElementById('token-expires').textContent;
     const note = document.getElementById('token-note').value.trim();
     
-    const shareText = `📺 Código de acceso para De Pechito TV: ${token}\n` +
+    const shareText = `📺 Código de acceso para Machetero TV: ${token}\n` +
                      `🕒 Expira: ${expiresText}\n` +
                      (note ? `📝 Nota: ${note}\n` : '') +
                      `🔗 Accede en: ${window.location.href}`;
@@ -593,7 +677,23 @@ document.addEventListener('DOMContentLoaded', function() {
   }
   
   // Verificar si hay un token de usuario almacenado
-  const userToken = localStorage.getItem('depechito_user_token');
+  // Intentar primero con la nueva clave
+  let userToken = localStorage.getItem('machetero_user_token');
+  
+  // Si no hay token con la nueva clave, verificar la antigua y migrar si existe
+  if (!userToken) {
+    const oldToken = localStorage.getItem('depechito_user_token');
+    if (oldToken) {
+      console.log('Encontrado token de usuario con clave antigua, migrando...');
+      localStorage.setItem('machetero_user_token', oldToken);
+      localStorage.removeItem('depechito_user_token');
+      userToken = oldToken;
+    }
+  }
+  
+  // Forzar recarga de tokens desde localStorage antes de validar
+  accessManager.tokens = accessManager.loadTokens();
+  
   if (userToken && accessManager.isValidToken(userToken)) {
     console.log('Acceso con token válido');
     return; // Token válido, permitir acceso
@@ -607,3 +707,26 @@ document.addEventListener('DOMContentLoaded', function() {
   document.querySelector('.container').style.display = 'none';
   document.querySelector('footer').style.display = 'none';
 });
+
+// Ejecutar diagnóstico
+  document.getElementById('run-diagnostic').addEventListener('click', () => {
+    // Recargar tokens desde localStorage antes de diagnosticar
+    accessManager.tokens = accessManager.loadTokens();
+    
+    // Ejecutar diagnóstico
+    const diagnosis = accessManager.diagnosticTokens();
+    
+    // Mostrar resultados del diagnóstico
+    alert(`Diagnóstico completado:
+- Tokens en memoria: ${diagnosis.memoryTokens}
+- Tokens en localStorage (nueva clave): ${diagnosis.storedTokensNew}
+- Tokens en localStorage (clave antigua): ${diagnosis.storedTokensOld}
+- Token de usuario: ${diagnosis.userToken || 'No hay'}
+- Token válido: ${diagnosis.userTokenValid ? 'Sí' : 'No'}
+- Es admin: ${diagnosis.isAdmin ? 'Sí' : 'No'}
+
+Ver consola para más detalles.`);
+    
+    // Actualizar la lista de tokens tras el diagnóstico
+    refreshTokensList();
+  });
