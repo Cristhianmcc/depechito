@@ -88,8 +88,8 @@ function showBlockedStreamMessage(channelName) {
       <h3>Canal con restricciones</h3>
       <p>El stream para <strong>${channelName}</strong> no está disponible debido a una de estas razones:</p>
       <ul>
-        <li>El servidor bloquea el acceso desde nuestra página</li>
         <li>El token de acceso ha expirado</li>
+        <li>El servidor bloquea el acceso desde nuestra página</li>
         <li>Hay restricciones geográficas para este contenido</li>
       </ul>
       <p>Prueba con un canal de demostración mientras actualizamos los enlaces.</p>
@@ -191,6 +191,18 @@ const DEMO_STREAMS = {
   "Demo Bajo": "https://bitdash-a.akamaihd.net/content/MI201109210084_1/m3u8s/f08e80da-bf1d-4e3d-8899-f0f6155f6efa.m3u8" // Stream de baja calidad que suele funcionar bien
 };
 
+// Tokens conocidos para canales específicos (se actualizan manualmente)
+const KNOWN_TOKENS = {
+  "Liga 1 Max": "f057ff2933c158c4d7fb2ec39c744773bb914657-96-1750403033-1750385033",
+  "DIRECTV Sports HD": "07e9222a6a330a85295945d750fe7325c719cc21-3e-1750404116-1750386116",
+  "DIRECTV Sports 2 HD": "31438de0305feebf6b7830afd1f4e83f2bca8bae-40-1750404198-1750386198",
+  "ESPN": "d30f1c43672f40df77c0205172841bb77db0d4e2-1d-1750404333-1750386333",
+  "ESPN2": "2c75a1d5187aac920acbd797c4adaaf26db13910-8b-1750404417-1750386417",
+  "ESPN3": "653adc01a02992ff31e8d6331439531a8cf743e9-3f-1750404482-1750386482",
+  "ESPN Premium": "4e472f822cf5e6278a434107b3ff97cc37aab0f6-36-1750404622-1750386622"
+  // Movistar Deportes y Gol Perú serán añadidos cuando estén disponibles
+};
+
 // API base URL - cambia automáticamente entre desarrollo y producción
 const isLocalhost = window.location.hostname === 'localhost' || 
                    window.location.hostname === '127.0.0.1' || 
@@ -288,69 +300,116 @@ async function fetchNewLink(channelName) {
   // Log para depuración en producción
   console.log(`Intentando obtener enlace para: ${channelName} desde ${API_BASE_URL}`);
   
-  // Caso especial DirecTV Sports via scraper backend
+  // Verificar si tenemos un token conocido para el canal
   const lower = channelName.toLowerCase();
+  
+  // Usar los tokens conocidos en KNOWN_TOKENS cuando estén disponibles
+  if (KNOWN_TOKENS[channelName]) {
+    const token = KNOWN_TOKENS[channelName];
+    console.log(`Usando token fijo para ${channelName}: ${token.substring(0, 10)}...`);
+    
+    // URLs específicas según el canal
+    if (lower.includes('liga 1 max')) {
+      return `https://dglvz29s.fubohd.com/liga1max/mono.m3u8?token=${token}`;
+    } else if (lower.includes('directv sports 2') || lower.includes('dsports2')) {
+      return `https://dglvz29s.fubohd.com/dsports2/mono.m3u8?token=${token}`;
+    } else if (lower.includes('directv sports') && !lower.includes('2') && !lower.includes('plus')) {
+      return `https://am91cm5leQ.fubohd.com/dsports/mono.m3u8?token=${token}`;
+    } else if (lower.includes('espn premium')) {
+      return `https://a2lja3m.fubohd.com/espnpremium/mono.m3u8?token=${token}`;
+    } else if (lower.includes('espn3') || lower.includes('espn 3')) {
+      return `https://am91cm5leQ.fubohd.com/espn3/mono.m3u8?token=${token}`;
+    } else if (lower.includes('espn2') || lower.includes('espn 2')) {
+      return `https://bGFuZQ.fubohd.com/espn2/mono.m3u8?token=${token}`;
+    } else if (lower.includes('espn') && !lower.includes('premium') && !lower.includes('2') && !lower.includes('3')) {
+      return `https://c2f2zq.fubohd.com/espn/mono.m3u8?token=${token}`;
+    }
+  }
+  
+  // Caso especial DirecTV Sports via scraper backend
   if (lower.includes('directv sports 2') || lower.includes('dsports2')) {
+    if (KNOWN_TOKENS["DIRECTV Sports 2 HD"]) {
+      const dsports2Token = KNOWN_TOKENS["DIRECTV Sports 2 HD"];
+      return `https://dglvz29s.fubohd.com/dsports2/mono.m3u8?token=${dsports2Token}`;
+    }
     try {
       const res = await fetch(`${API_BASE_URL}/api/stream/dsports2`);
       const data = await res.json();
       return data.url;
     } catch (e) {
       console.warn('Proxy dsports2 failed', e);
-    }
-  } else if (lower.includes('espn premium')) {
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/stream/espnpremium`);
-      const data = await res.json();
-      return data.url;
-    } catch (e) {
-      console.warn('Proxy espnpremium failed', e);
-    }
-  } else if (lower.includes('espn4') || lower.includes('espn 4')) {
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/stream/espn4`);
-      const data = await res.json();
-      console.log('Using URL for ESPN4:', data.url);
-      return data.url;
-    } catch (e) {
-      console.warn('Proxy espn4 failed', e);
-    }
-  } else if (lower.includes('espn3') || lower.includes('espn 3')) {
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/stream/espn3`);
-      const data = await res.json();
-      console.log('Using URL for ESPN3:', data.url);
-      return data.url;
-    } catch (e) {
-      console.warn('Proxy espn3 failed', e);
-    }
-  } else if (lower.includes('espn2') || lower.includes('espn 2')) {
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/stream/espn2`);
-      const data = await res.json();
-      console.log('Using URL for ESPN2:', data.url);
-      return data.url;
-    } catch (e) {
-      console.warn('Proxy espn2 failed', e);
-    }
-  } else if (lower.includes('espn') && !lower.includes('espn2') && !lower.includes('espn 2') && !lower.includes('espn3') && !lower.includes('espn 3') && !lower.includes('espn4') && !lower.includes('espn 4')) {
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/stream/espn`);
-      const data = await res.json();
-      console.log('Using URL for ESPN:', data.url);
-      return data.url;
-    } catch (e) {
-      console.warn('Proxy espn failed', e);
-    }
-  } else if (lower.includes('directv sports') && !lower.includes('plus')) {
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/stream/dsports`);
-      const data = await res.json();
-      console.log('Using URL for DirecTV Sports:', data.url);
-      return data.url;
-    } catch (e) {
-      console.warn('Proxy dsports failed', e);
-    }
+    }    } else if (lower.includes('espn premium')) {
+      if (KNOWN_TOKENS["ESPN Premium"]) {
+        const espnPremiumToken = KNOWN_TOKENS["ESPN Premium"];
+        return `https://a2lja3m.fubohd.com/espnpremium/mono.m3u8?token=${espnPremiumToken}`;
+      }
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/stream/espnpremium`);
+        const data = await res.json();
+        return data.url;
+      } catch (e) {
+        console.warn('Proxy espnpremium failed', e);
+      }} else if (lower.includes('espn4') || lower.includes('espn 4')) {
+      if (KNOWN_TOKENS["ESPN4"]) {
+        const espn4Token = KNOWN_TOKENS["ESPN4"];
+        return `https://ag9wzq.fubohd.com/espn4/mono.m3u8?token=${espn4Token}`;
+      }
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/stream/espn4`);
+        const data = await res.json();
+        console.log('Using URL for ESPN4:', data.url);
+        return data.url;
+      } catch (e) {
+        console.warn('Proxy espn4 failed', e);
+      }    } else if (lower.includes('espn3') || lower.includes('espn 3')) {
+      if (KNOWN_TOKENS["ESPN3"]) {
+        const espn3Token = KNOWN_TOKENS["ESPN3"];
+        return `https://am91cm5leQ.fubohd.com/espn3/mono.m3u8?token=${espn3Token}`;
+      }
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/stream/espn3`);
+        const data = await res.json();
+        console.log('Using URL for ESPN3:', data.url);
+        return data.url;
+      } catch (e) {
+        console.warn('Proxy espn3 failed', e);
+      }    } else if (lower.includes('espn2') || lower.includes('espn 2')) {
+      if (KNOWN_TOKENS["ESPN2"]) {
+        const espn2Token = KNOWN_TOKENS["ESPN2"];
+        return `https://bGFuZQ.fubohd.com/espn2/mono.m3u8?token=${espn2Token}`;
+      }
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/stream/espn2`);
+        const data = await res.json();
+        console.log('Using URL for ESPN2:', data.url);
+        return data.url;
+      } catch (e) {
+        console.warn('Proxy espn2 failed', e);
+      }    } else if (lower.includes('espn') && !lower.includes('espn2') && !lower.includes('espn 2') && !lower.includes('espn3') && !lower.includes('espn 3') && !lower.includes('espn4') && !lower.includes('espn 4')) {
+      if (KNOWN_TOKENS["ESPN"]) {
+        const espnToken = KNOWN_TOKENS["ESPN"];
+        return `https://c2f2zq.fubohd.com/espn/mono.m3u8?token=${espnToken}`;
+      }
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/stream/espn`);
+        const data = await res.json();
+        console.log('Using URL for ESPN:', data.url);
+        return data.url;
+      } catch (e) {
+        console.warn('Proxy espn failed', e);
+      }    } else if (lower.includes('directv sports') && !lower.includes('plus')) {
+      if (KNOWN_TOKENS["DIRECTV Sports HD"]) {
+        const dsportsToken = KNOWN_TOKENS["DIRECTV Sports HD"];
+        return `https://am91cm5leQ.fubohd.com/dsports/mono.m3u8?token=${dsportsToken}`;
+      }
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/stream/dsports`);
+        const data = await res.json();
+        console.log('Using URL for DirecTV Sports:', data.url);
+        return data.url;
+      } catch (e) {
+        console.warn('Proxy dsports failed', e);
+      }
   } else if (lower.includes('gol peru') || lower.includes('golperu') || lower.includes('gol perú')) {
     try {
       const res = await fetch(`${API_BASE_URL}/api/stream/golperu`);
@@ -358,15 +417,18 @@ async function fetchNewLink(channelName) {
       return data.url;
     } catch (e) {
       console.warn('Proxy golperu failed', e);
-    }
-  } else if (lower.includes('liga 1 max')) {
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/stream/liga1max`);
-      const data = await res.json();
-      return data.url;
-    } catch (e) {
-      console.warn('Proxy liga1max failed', e);
-    }
+    }    } else if (lower.includes('liga 1 max')) {
+      if (KNOWN_TOKENS["Liga 1 Max"]) {
+        const liga1Token = KNOWN_TOKENS["Liga 1 Max"];
+        return `https://dglvz29s.fubohd.com/liga1max/mono.m3u8?token=${liga1Token}`;
+      }
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/stream/liga1max`);
+        const data = await res.json();
+        return data.url;
+      } catch (e) {
+        console.warn('Proxy liga1max failed', e);
+      }
   } else if (lower.includes('movistar')) {
     try {
       const res = await fetch(`${API_BASE_URL}/api/stream/movistar`);
@@ -546,7 +608,7 @@ function setupDashPlayer(url) {
     if (playPromise !== undefined) {
       playPromise.catch(error => {
         console.log('Autoplay prevented:', error);
-        showStatus('Haz clic en PLAY ▶️ para comenzar la reproducción');
+        showStatus('Haz clic en PLAY ▶️ para comenzar a ver el canal');
         addPlayButton();
       });
     }
@@ -779,6 +841,26 @@ function attachStream(url) {
     const isAkamaiStream = url.includes('akamaized.net');
     const isSpecialStream = isFubohdStream || url.includes('dsports') || url.includes('directv') || isAkamaiStream;
     
+    // Guardar el token si existe para futuras reproducciones (para cualquier canal)
+    if (url.includes('token=')) {
+      const tokenMatch = url.match(/token=([^&]+)/);
+      if (tokenMatch && tokenMatch[1]) {
+        console.log('Token encontrado y almacenado para futura referencia: ' + currentChannel);
+        sessionStorage.setItem(`${currentChannel.replace(/\s+/g, '_').toLowerCase()}_token`, tokenMatch[1]);
+      }
+    }
+    
+    // Si es un stream de Liga 1 Max con fuboHD, verificar si tenemos un token almacenado
+    if (currentChannel.includes('Liga 1') && isFubohdStream && !url.includes('token=')) {
+      const storedToken = sessionStorage.getItem('liga1max_token');
+      if (storedToken) {
+        // Extraer la base URL sin token
+        const baseUrl = url.split('?')[0];
+        url = `${baseUrl}?token=${storedToken}`;
+        console.log('Usando token almacenado para Liga 1 Max');
+      }
+    }
+    
     const hlsConfig = { 
       maxBufferSize: 60 * 1000 * 1000,
       maxMaxBufferLength: 30,     // Aumentar para manejar mejor las interrupciones
@@ -819,7 +901,7 @@ function attachStream(url) {
           showStatus(`Reproduciendo ${currentChannel}`);
         }).catch(error => {
           console.log('Autoplay prevented:', error);
-          showStatus('Haz clic en PLAY ▶️ para comenzar la reproducción');
+          showStatus('Haz clic en PLAY ▶️ para comenzar a ver el canal');
           // Añadir un botón de play visible para ayudar al usuario
           addPlayButton();
         });
@@ -837,10 +919,17 @@ function attachStream(url) {
       // Registramos el error en consola para depuración
       console.error('HLS Error:', data.type, data.details, data);
       
+      // Detectar específicamente errores 403
+      let is403Error = false;
+      if (data.response && data.response.code === 403) {
+        is403Error = true;
+        console.warn('Error 403 detectado: El token ha expirado o el acceso está bloqueado');
+      }
+      
       // Si el error es fatal, intentamos otra fuente
       if (data.fatal) {
         console.log('Error fatal detectado, intentando recuperar...');
-        handleStreamError();
+        handleStreamError(false, is403Error);
       }
     });
   } else if (video.canPlayType('application/vnd.apple.mpegurl') || video.canPlayType('application/x-mpegURL')) {
@@ -855,7 +944,7 @@ function attachStream(url) {
           showStatus(`Reproduciendo ${currentChannel}`);
         }).catch(error => {
           console.log('Autoplay prevented:', error);
-          showStatus('Haz clic en PLAY ▶️ para comenzar la reproducción');
+          showStatus('Haz clic en PLAY ▶️ para comenzar a ver el canal');
           addPlayButton();
         });
       }
@@ -1068,10 +1157,11 @@ function handleStreamError(isAccessError = false, is403Error = false, isFubohdEr
 
   const list = CHANNELS[currentChannel] || [];
   
-  // Si es un error 403 específico, mostramos un mensaje claro y no intentamos más
-  if (is403Error) {
+  // Detectar si es un error 403 basado en la respuesta
+  if (is403Error || (currentChannel.toLowerCase().includes('liga 1') && 
+                     hls && hls.url && hls.url.includes('fubohd.com'))) {
     console.log(`Error 403 detectado para ${currentChannel}. El proveedor bloquea la reproducción.`);
-    showStatus(`⛔ El proveedor de ${currentChannel} bloquea activamente la reproducción.`);
+    showStatus(`⛔ El proveedor de ${currentChannel} requiere un token actualizado.`);
     showBlockedStreamMessage(currentChannel);
     return; // No intentamos más con este canal si hay un bloqueo activo
   }
@@ -1223,5 +1313,11 @@ document.addEventListener('DOMContentLoaded', () => {
         channelList.firstElementChild.click();
       }
     }
+    
+    // Mostrar información sobre cómo proporcionar tokens para canales deportivos
+    console.log('%c📌 INFORMACIÓN IMPORTANTE:', 'font-weight: bold; font-size: 14px; color: #e74c3c;');
+    console.log('Para que los canales deportivos funcionen correctamente, necesitas proporcionar tokens actualizados.');
+    console.log('Ya se ha configurado el token para Liga 1 Max que proporcionaste.');
+    console.log('Para otros canales, necesitarás actualizar el archivo server.js con tokens nuevos.');
   }, 500);
 });
