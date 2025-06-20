@@ -9,6 +9,7 @@ const cors = require('cors');
 const https = require('https');
 const path = require('path');
 const fs = require('fs');
+const sqlite3 = require('sqlite3').verbose();
 
 // Configuración del servidor
 const PORT = process.env.PORT || 4000;
@@ -26,52 +27,70 @@ const httpsAgent = new https.Agent({
   rejectUnauthorized: false
 });
 
-// Configuración para la gestión de tokens
-const TOKEN_FILE = path.join(__dirname, 'tokens.json');
+// Configuración para la base de datos SQLite
+const DB_FILE = path.join(__dirname, 'tokens.db');
+const db = new sqlite3.Database(DB_FILE, (err) => {
+  if (err) {
+    console.error('Error al conectar con la base de datos:', err.message);
+  } else {
+    console.log('Conexión exitosa a la base de datos SQLite');
+    // Crear la tabla de tokens si no existe
+    db.run(`
+      CREATE TABLE IF NOT EXISTS tokens (
+        token TEXT PRIMARY KEY,
+        createdAt INTEGER NOT NULL,
+        expiresAt INTEGER NOT NULL,
+        note TEXT,
+        hours INTEGER
+      )
+    `, (err) => {
+      if (err) {
+        console.error('Error al crear la tabla de tokens:', err.message);
+      } else {
+        console.log('Tabla de tokens verificada/creada correctamente');
+        // Migrar tokens existentes desde el archivo JSON si existe
+        migrateTokensFromJson();
+      }
+    });
+  }
+});
 
-// Función para cargar los tokens desde el archivo
-function loadTokens() {
-  try {
-    if (fs.existsSync(TOKEN_FILE)) {
+// Función para migrar tokens existentes desde JSON a SQLite (solo se ejecuta una vez)
+function migrateTokensFromJson() {
+  const TOKEN_FILE = path.join(__dirname, 'tokens.json');
+  if (fs.existsSync(TOKEN_FILE)) {
+    try {
       const data = fs.readFileSync(TOKEN_FILE, 'utf8');
-      return JSON.parse(data);
+      const tokens = JSON.parse(data);
+      
+      // Iniciar una transacción para insertar todos los tokens
+      db.serialize(() => {
+        db.run('BEGIN TRANSACTION');
+        
+        const stmt = db.prepare('INSERT OR REPLACE INTO tokens (token, createdAt, expiresAt, note, hours) VALUES (?, ?, ?, ?, ?)');
+        
+        Object.entries(tokens).forEach(([token, data]) => {
+          stmt.run(token, data.createdAt, data.expiresAt, data.note || '', data.hours || 24);
+        });
+        
+        stmt.finalize();
+        db.run('COMMIT', [], (err) => {
+          if (err) {
+            console.error('Error al migrar tokens desde JSON:', err.message);
+          } else {
+            console.log(`Migrados ${Object.keys(tokens).length} tokens desde JSON a SQLite`);
+            // Opcional: renombrar el archivo JSON original como backup
+            fs.renameSync(TOKEN_FILE, `${TOKEN_FILE}.bak`);
+            console.log('Archivo JSON renombrado como backup');
+          }
+        });
+      });
+    } catch (error) {
+      console.error('Error al leer el archivo de tokens:', error);
     }
-    return {};
-  } catch (error) {
-    console.error('Error al cargar tokens desde el archivo:', error);
-    return {};
+  } else {
+    console.log('No se encontró archivo JSON de tokens para migrar');
   }
-}
-
-// Función para guardar los tokens en el archivo
-function saveTokens(tokens) {
-  try {
-    fs.writeFileSync(TOKEN_FILE, JSON.stringify(tokens, null, 2), 'utf8');
-    return true;
-  } catch (error) {
-    console.error('Error al guardar tokens en el archivo:', error);
-    return false;
-  }
-}
-
-// Función para limpiar tokens expirados
-function cleanExpiredTokens() {
-  const tokens = loadTokens();
-  const now = new Date().getTime();
-  let changed = false;
-  
-  Object.keys(tokens).forEach(token => {
-    if (tokens[token].expiresAt && now > tokens[token].expiresAt) {
-      delete tokens[token];
-      changed = true;
-    }
-  });
-  
-  if (changed) {
-    saveTokens(tokens);
-  }
-  
-  return tokens;
 }
 
 // URL directa de DirecTV Sports (actualizada manualmente cuando sea necesario)
@@ -550,6 +569,127 @@ app.get('/api/config', (req, res) => {
 
 // ==================== API DE TOKENS ====================
 
+// Función para cargar tokens desde la base de datos SQLite
+function loadTokens(callback) {
+  db.all('SELECT * FROM tokens', [], (err, rows) => {
+    if (err) {
+      console.error('Error al cargar tokens desde la base de datos:', err.message);
+      callback({});
+      return;
+    }
+    
+    // Convertir filas a formato de objeto
+    const tokens = {};
+    rows.forEach(row => {
+      tokens[row.token] = {
+        createdAt: row.createdAt,
+        expiresAt: row.expiresAt,
+        note: row.note || '',
+        hours: row.hours || 24
+      };
+    });
+    
+    callback(tokens);
+  });
+}
+
+// Función para guardar un token en la base de datos
+function saveToken(token, data, callback) {
+  const { createdAt, expiresAt, note, hours } = data;
+  
+  db.run(
+    'INSERT OR REPLACE INTO tokens (token, createdAt, expiresAt, note, hours) VALUES (?, ?, ?, ?, ?)',
+    [token, createdAt, expiresAt, note || '', hours || 24],
+    function(err) {
+      if (err) {
+        console.error('Error al guardar token en la base de datos:', err.message);
+        callback(false);
+        return;
+      }
+      
+      console.log(`Token guardado en la base de datos: ${token}`);
+      callback(true);
+    }
+  );
+}
+
+// Función para eliminar un token de la base de datos
+function deleteToken(token, callback) {
+  db.run('DELETE FROM tokens WHERE token = ?', [token], function(err) {
+    if (err) {
+      console.error('Error al eliminar token de la base de datos:', err.message);
+      callback(false);
+      return;
+    }
+    
+    console.log(`Token eliminado de la base de datos: ${token}`);
+    callback(this.changes > 0);
+  });
+}
+
+// Función para eliminar todos los tokens de la base de datos
+function deleteAllTokens(callback) {
+  db.run('DELETE FROM tokens', function(err) {
+    if (err) {
+      console.error('Error al eliminar todos los tokens de la base de datos:', err.message);
+      callback(false);
+      return;
+    }
+    
+    console.log(`Eliminados ${this.changes} tokens de la base de datos`);
+    callback(true);
+  });
+}
+
+// Función para limpiar tokens expirados
+function cleanExpiredTokens(callback) {
+  const now = new Date().getTime();
+  
+  db.run('DELETE FROM tokens WHERE expiresAt < ?', [now], function(err) {
+    if (err) {
+      console.error('Error al limpiar tokens expirados:', err.message);
+      callback && callback({});
+      return;
+    }
+    
+    const deletedCount = this.changes;
+    if (deletedCount > 0) {
+      console.log(`Se eliminaron ${deletedCount} tokens expirados`);
+    }
+    
+    // Cargar los tokens restantes después de la limpieza
+    loadTokens(tokens => {
+      callback && callback(tokens);
+    });
+  });
+}
+
+// Función para obtener un token específico de la base de datos
+function getToken(token, callback) {
+  db.get('SELECT * FROM tokens WHERE token = ?', [token], (err, row) => {
+    if (err) {
+      console.error('Error al obtener token de la base de datos:', err.message);
+      callback(null);
+      return;
+    }
+    
+    if (!row) {
+      callback(null);
+      return;
+    }
+    
+    // Convertir a formato de objeto
+    const tokenData = {
+      createdAt: row.createdAt,
+      expiresAt: row.expiresAt,
+      note: row.note || '',
+      hours: row.hours || 24
+    };
+    
+    callback(tokenData);
+  });
+}
+
 // Endpoint para guardar un nuevo token
 app.post('/api/tokens', (req, res) => {
   const { token, expiresAt, note, hours, password } = req.body;
@@ -563,24 +703,23 @@ app.post('/api/tokens', (req, res) => {
     return res.status(400).json({ error: 'Token no proporcionado' });
   }
   
-  // Cargar tokens actuales, limpiar expirados
-  const tokens = cleanExpiredTokens();
-  
-  // Agregar el nuevo token
-  tokens[token] = {
+  // Crear datos del token
+  const tokenData = {
     createdAt: new Date().getTime(),
     expiresAt: expiresAt || (new Date().getTime() + (hours || 24) * 60 * 60 * 1000),
     note: note || "",
     hours: hours || 24
   };
   
-  // Guardar tokens
-  if (saveTokens(tokens)) {
-    console.log(`Nuevo token guardado en el servidor: ${token}`);
-    res.status(201).json({ success: true, token, expiresAt: tokens[token].expiresAt });
-  } else {
-    res.status(500).json({ error: 'Error al guardar el token' });
-  }
+  // Guardar el token en la base de datos
+  saveToken(token, tokenData, (success) => {
+    if (success) {
+      console.log(`Nuevo token guardado en el servidor: ${token}`);
+      res.status(201).json({ success: true, token, expiresAt: tokenData.expiresAt });
+    } else {
+      res.status(500).json({ error: 'Error al guardar el token' });
+    }
+  });
 });
 
 // Endpoint para validar un token
@@ -594,44 +733,44 @@ app.get('/api/tokens/validate/:token', (req, res) => {
     return res.status(400).json({ valid: false, error: 'Token no proporcionado' });
   }
   
-  // Cargar tokens actuales, limpiar expirados
-  const tokens = cleanExpiredTokens();
-  console.log(`Total de tokens en el servidor: ${Object.keys(tokens).length}`);
-  console.log(`Tokens disponibles: ${Object.keys(tokens).join(', ')}`);
-  
-  // Verificar si el token existe
-  if (!tokens[token]) {
-    console.log(`Token no encontrado: ${token}`);
-    return res.status(404).json({ valid: false, error: 'Token no encontrado' });
-  }
-  
-  // Verificar si el token ha expirado
-  const tokenData = tokens[token];
-  const now = new Date().getTime();
-  
-  if (tokenData.expiresAt && now > tokenData.expiresAt) {
-    console.log(`Token expirado: ${token}`);
+  // Limpiar tokens expirados y luego verificar el token solicitado
+  cleanExpiredTokens((tokens) => {
+    console.log(`Total de tokens en el servidor: ${Object.keys(tokens).length}`);
+    console.log(`Tokens disponibles: ${Object.keys(tokens).join(', ')}`);
     
-    // Eliminar el token expirado
-    delete tokens[token];
-    saveTokens(tokens);
+    // Verificar si el token existe
+    if (!tokens[token]) {
+      console.log(`Token no encontrado: ${token}`);
+      return res.status(404).json({ valid: false, error: 'Token no encontrado' });
+    }
     
-    return res.status(401).json({ valid: false, error: 'Token expirado' });
-  }
-  
-  // Calcular tiempo restante
-  const hoursRemaining = Math.floor((tokenData.expiresAt - now) / (60 * 60 * 1000));
-  const minutesRemaining = Math.floor(((tokenData.expiresAt - now) % (60 * 60 * 1000)) / (60 * 1000));
-  
-  console.log(`Token válido: ${token} - expira en ${hoursRemaining}h ${minutesRemaining}m`);
-  
-  // El token es válido
-  res.json({
-    valid: true,
-    token,
-    expiresAt: tokenData.expiresAt,
-    remaining: `${hoursRemaining}h ${minutesRemaining}m`,
-    note: tokenData.note || ""
+    // Verificar si el token ha expirado
+    const tokenData = tokens[token];
+    const now = new Date().getTime();
+    
+    if (tokenData.expiresAt && now > tokenData.expiresAt) {
+      console.log(`Token expirado: ${token}`);
+      
+      // Eliminar el token expirado
+      deleteToken(token, () => {});
+      
+      return res.status(401).json({ valid: false, error: 'Token expirado' });
+    }
+    
+    // Calcular tiempo restante
+    const hoursRemaining = Math.floor((tokenData.expiresAt - now) / (60 * 60 * 1000));
+    const minutesRemaining = Math.floor(((tokenData.expiresAt - now) % (60 * 60 * 1000)) / (60 * 1000));
+    
+    console.log(`Token válido: ${token} - expira en ${hoursRemaining}h ${minutesRemaining}m`);
+    
+    // El token es válido
+    res.json({
+      valid: true,
+      token,
+      expiresAt: tokenData.expiresAt,
+      remaining: `${hoursRemaining}h ${minutesRemaining}m`,
+      note: tokenData.note || ""
+    });
   });
 });
 
@@ -644,28 +783,29 @@ app.get('/api/tokens', (req, res) => {
     return res.status(401).json({ error: 'No autorizado' });
   }
   
-  // Cargar y limpiar tokens expirados
-  const tokens = cleanExpiredTokens();
-  const now = new Date().getTime();
-  
-  // Preparar respuesta con información adicional
-  const result = {};
-  Object.keys(tokens).forEach(token => {
-    const tokenData = tokens[token];
-    const remainingMs = tokenData.expiresAt - now;
-    const remainingHours = Math.max(0, Math.floor(remainingMs / (60 * 60 * 1000)));
-    const remainingMinutes = Math.max(0, Math.floor((remainingMs % (60 * 60 * 1000)) / (60 * 1000)));
+  // Limpiar tokens expirados y obtener los vigentes
+  cleanExpiredTokens((tokens) => {
+    const now = new Date().getTime();
     
-    result[token] = {
-      ...tokenData,
-      remaining: `${remainingHours}h ${remainingMinutes}m`,
-      isExpired: now > tokenData.expiresAt,
-      createdAtFormatted: new Date(tokenData.createdAt).toLocaleString(),
-      expiresAtFormatted: new Date(tokenData.expiresAt).toLocaleString()
-    };
+    // Preparar respuesta con información adicional
+    const result = {};
+    Object.keys(tokens).forEach(token => {
+      const tokenData = tokens[token];
+      const remainingMs = tokenData.expiresAt - now;
+      const remainingHours = Math.max(0, Math.floor(remainingMs / (60 * 60 * 1000)));
+      const remainingMinutes = Math.max(0, Math.floor((remainingMs % (60 * 60 * 1000)) / (60 * 1000)));
+      
+      result[token] = {
+        ...tokenData,
+        remaining: `${remainingHours}h ${remainingMinutes}m`,
+        isExpired: now > tokenData.expiresAt,
+        createdAtFormatted: new Date(tokenData.createdAt).toLocaleString(),
+        expiresAtFormatted: new Date(tokenData.expiresAt).toLocaleString()
+      };
+    });
+    
+    res.json(result);
   });
-  
-  res.json(result);
 });
 
 // Endpoint para revocar un token
@@ -682,24 +822,15 @@ app.delete('/api/tokens/:token', (req, res) => {
     return res.status(400).json({ error: 'Token no proporcionado' });
   }
   
-  // Cargar tokens
-  const tokens = loadTokens();
-  
-  // Verificar si el token existe
-  if (!tokens[token]) {
-    return res.status(404).json({ error: 'Token no encontrado' });
-  }
-  
-  // Eliminar el token
-  delete tokens[token];
-  
-  // Guardar tokens
-  if (saveTokens(tokens)) {
-    console.log(`Token revocado: ${token}`);
-    res.json({ success: true, message: 'Token revocado correctamente' });
-  } else {
-    res.status(500).json({ error: 'Error al revocar el token' });
-  }
+  // Eliminar el token de la base de datos
+  deleteToken(token, (success) => {
+    if (success) {
+      console.log(`Token revocado: ${token}`);
+      res.json({ success: true, message: 'Token revocado correctamente' });
+    } else {
+      res.status(404).json({ error: 'Token no encontrado o error al revocar' });
+    }
+  });
 });
 
 // Endpoint para revocar todos los tokens
@@ -711,13 +842,15 @@ app.delete('/api/tokens', (req, res) => {
     return res.status(401).json({ error: 'No autorizado' });
   }
   
-  // Guardar un objeto vacío como tokens
-  if (saveTokens({})) {
-    console.log('Todos los tokens han sido revocados');
-    res.json({ success: true, message: 'Todos los tokens han sido revocados' });
-  } else {
-    res.status(500).json({ error: 'Error al revocar todos los tokens' });
-  }
+  // Eliminar todos los tokens de la base de datos
+  deleteAllTokens((success) => {
+    if (success) {
+      console.log('Todos los tokens han sido revocados');
+      res.json({ success: true, message: 'Todos los tokens han sido revocados' });
+    } else {
+      res.status(500).json({ error: 'Error al revocar todos los tokens' });
+    }
+  });
 });
 
 // Nuevo endpoint para buscar específicamente en RojaDirecta
@@ -841,7 +974,6 @@ app.get('/api/mobile/stream', async (req, res) => {
     dsports2: 'dsports2_mobile',
     dsportsplus: 'dsportsplus_mobile',
     directvplus: 'dsportsplus_mobile',
-    
     // Otros canales
     liga1max: 'liga1max_mobile',
     golperu: 'golperu_mobile',
@@ -853,55 +985,44 @@ app.get('/api/mobile/stream', async (req, res) => {
     movistardeportes: 'movistar_mobile'
   };
   
-  const channelId = mobileMapping[normalizedChannel] || normalizedChannel;
+  const slug = mobileMapping[normalizedChannel] || normalizedChannel;
   
   try {
-    // Lista de URLs específicas para móviles (actualizar manualmente)
-    const MOBILE_STREAM_URLS = {
-      dsports_mobile: "https://ag9wzq.fubohd.com:443/dsports/mono.m3u8?token=61cfa088b097200767adf86d505b4b9378c0cbc2-5-1750443916-1750425916",
-      dsports2_mobile: "https://ag9wzq.fubohd.com:443/dsports2/mono.m3u8?token=ec806f16b0201dfd2b8ea8d65e43b258c9eb5eaa-c3-1750445977-1750427977",
-      dsportsplus_mobile: "https://ag9wzq.fubohd.com:443/dsportsplus/mono.m3u8?token=6be5b52b874cc027af845465a1066be6be940865-d7-1750446014-1750428014",
-      liga1max_mobile: "https://ag9wzq.fubohd.com:443/liga1max/mono.m3u8?token=d38e5213144afeaf29de7d39109cd37162b57c3b-65-1750446275-1750428275",
-      espn_mobile: "https://ag9wzq.fubohd.com:443/espn/mono.m3u8?token=9b9586272b50bb1ac4c6be0278fdfdbe3994dccf-de-1750446061-1750428061",
-      espn2_mobile: "https://ag9wzq.fubohd.com:443/espn2/mono.m3u8?token=85cdc5ecd8f998f9013d805e252604e795366a5c-9f-1750446099-1750428099",
-      espn3_mobile: "https://ag9wzq.fubohd.com:443/espn3/mono.m3u8?token=66342a841c5d31582050612be72f4de456f29844-fd-1750446130-1750428130"
-    };
+    let streamUrl = '';
+    let token = '';
     
-    // Verificar si tenemos una URL específica para móviles
-    if (MOBILE_STREAM_URLS[channelId]) {
-      console.log(`[MÓVIL] Usando URL específica para móviles para ${channelName}`);
-      const streamUrl = MOBILE_STREAM_URLS[channelId];
+    // Primero intentamos usar un enlace directo si está disponible
+    if (DSPORTS_DIRECT_LINKS[slug]) {
+      console.log(`Usando enlace directo para ${slug}`);
+      streamUrl = DSPORTS_DIRECT_LINKS[slug];
       
-      // Extraer token de la URL
-      let token = null;
-      if (streamUrl.includes('token=')) {
-        const tokenMatch = streamUrl.match(/token=([^&]+)/);
-        token = tokenMatch ? tokenMatch[1] : null;
+      // Extraer token del enlace directo
+      const tokenMatch = streamUrl.match(/token=([^&]+)/);
+      if (tokenMatch) {
+        token = tokenMatch[1];
       }
-      
-      return res.json({
-        url: streamUrl,
-        token: token,
-        mobile: true,
-        channel: channelName
-      });
     } else {
-      // Si no hay URL específica para móviles, intentamos encontrar una compatible
-      console.log(`[MÓVIL] No hay URL específica para ${channelName}, buscando alternativas`);
-      
-      // Por ahora, devolvemos un mensaje de error
-      return res.status(404).json({
-        error: 'No se encontró una URL específica para móviles',
-        message: 'Intenta con otro canal o usa la versión para desktop'
-      });
+      // Fallback: Intentar redirigir a la ruta específica
+      return res.redirect(`/api/stream/${slug}?mobile=true`);
     }
+    
+    // Devolvemos la URL y el token
+    return res.json({ 
+      url: streamUrl, 
+      token: token,
+      channel: channelName,
+      isMobile: true
+    });
   } catch (error) {
-    console.error(`[MÓVIL] Error obteniendo stream para ${channelName}:`, error);
-    return res.status(500).json({
-      error: 'Error al obtener el stream para móviles',
-      message: error.message
+    console.error(`Error obteniendo stream para ${channelName}:`, error);
+    return res.status(500).json({ 
+      error: 'Error al obtener el stream', 
+      message: error.message 
     });
   }
 });
 
-app.listen(PORT, () => console.log(`Scraper proxy running on http://localhost:${PORT}`));
+// Iniciar el servidor
+app.listen(PORT, () => {
+  console.log(`Servidor corriendo en http://localhost:${PORT}`);
+});
