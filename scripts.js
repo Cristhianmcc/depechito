@@ -134,9 +134,9 @@ function showWelcomeMessage() {
       <h3>¡Bienvenido al Reproductor de Canales!</h3>
       <p>Selecciona un canal desde la lista para comenzar a ver.</p>
       <p class="${mobileClass}">Recomendamos empezar con los canales de <span class="highlight">NASA TV Public</span> o <span class="highlight">Red Bull TV</span> que suelen funcionar mejor.</p>
-      <p class="update-note ${mobileClass}">Los tokens de todos los canales han sido actualizados (${new Date().toLocaleString()}).</p>
+      <p class="update-note ${mobileClass}">Los tokens se actualizan automáticamente cada 6 horas (última vez: ${new Date().toLocaleString()}).</p>
       <div class="action-buttons">
-        <button id="clear-cache-btn" class="action-button refresh-button">🔄 Actualizar Tokens</button>
+        <button id="clear-cache-btn" class="action-button refresh-button">🔄 Actualizar Tokens Ahora</button>
         ${window.isMobileDevice ? '<p class="mobile-note">Usa este botón si los canales no funcionan correctamente</p>' : ''}
       </div>
     `;
@@ -151,17 +151,22 @@ function showWelcomeMessage() {
         this.disabled = true;
         this.textContent = '⏳ Actualizando...';
         
-        // Limpiar caché y recargar
-        clearAllTokenCache();
-        StorageSystem.setItem('tokens_version', TOKENS_VERSION.toString());
-        StorageSystem.setItem('last_mobile_cleanup', Date.now().toString());
-        
-        showStatus('Tokens actualizados. Recargando página...');
-        
-        // Retrasar la recarga para que el usuario vea el mensaje
-        setTimeout(() => {
-          window.location.href = window.location.pathname + '?force_refresh=true';
-        }, 1500);
+        // Solicitar actualización de tokens al servidor
+        requestTokensUpdate().catch(error => {
+          console.error('Error al actualizar tokens:', error);
+          
+          // Si falla, usar el método antiguo
+          clearAllTokenCache();
+          StorageSystem.setItem('tokens_version', TOKENS_VERSION.toString());
+          StorageSystem.setItem('last_mobile_cleanup', Date.now().toString());
+          
+          showStatus('Tokens actualizados localmente. Recargando página...');
+          
+          // Retrasar la recarga para que el usuario vea el mensaje
+          setTimeout(() => {
+            window.location.href = window.location.pathname + '?force_refresh=true';
+          }, 1500);
+        });
       });
     }
   }
@@ -661,18 +666,18 @@ function estimateTokenExpiration(token) {
 
 // Constantes para la URL base de los diferentes canales
 const CHANNEL_BASE_URLS = {
-  "Liga 1 Max": "https://bgvnzw5k.fubohd.com/liga1max/mono.m3u8",
-  "DIRECTV Sports HD": "https://a2vlca.fubohd.com/dsports/mono.m3u8",
-  "DIRECTV Sports 2 HD": "https://ym9yzq.fubohd.com/dsports2/mono.m3u8",
-  "DirecTV Plus": "https://c2f2zq.fubohd.com/dsportsplus/mono.m3u8",
-  "ESPN": "https://tyg2mnl9.fubohd.com/espn/mono.m3u8",
-  "ESPN2": "https://am91cm5leQ.fubohd.com/espn2/mono.m3u8",
-  "ESPN3": "https://dglvz29s.fubohd.com/espn3/mono.m3u8",
-  "ESPN4": "https://aGl2ZQ.fubohd.com/espn4/mono.m3u8",
-  "ESPN5": "https://bGFuZQ.fubohd.com/espn5/mono.m3u8",
-  "ESPN6": "https://bmf0aw9u.fubohd.com/espn6/mono.m3u8",
-  "ESPN7": "https://aGl2ZQ.fubohd.com/espn7/mono.m3u8",
-  "ESPN Premium": "https://agvyby.fubohd.com/espnpremium/mono.m3u8"
+  "Liga 1 Max": "https://bmv3.fubohd.com/liga1max/mono.m3u8",
+  "DIRECTV Sports HD": "https://Y2FzdGxl.fubohd.com/dsports/mono.m3u8",
+  "DIRECTV Sports 2 HD": "https://b2ZmaWNpYWw.fubohd.com/dsports2/mono.m3u8",
+  "DirecTV Plus": "https://x4bnd7lq.fubohd.com/dsportsplus/mono.m3u8",
+  "ESPN": "https://bgvnzw5k.fubohd.com/espn/mono.m3u8",
+  "ESPN2": "https://Y2FzdGxl.fubohd.com/espn2/mono.m3u8",
+  "ESPN3": "https://c2nvdxq.fubohd.com/espn3/mono.m3u8",
+  "ESPN4": "https://dmvudge.fubohd.com/espn4/mono.m3u8",
+  "ESPN5": "https://qzv4jmsc.fubohd.com/espn5/mono.m3u8",
+  "ESPN6": "https://x4bnd7lq.fubohd.com/espn6/mono.m3u8",
+  "ESPN7": "https://cgxheq.fubohd.com/espn7/mono.m3u8",
+  "ESPN Premium": "https://aGl2ZQ.fubohd.com/espnpremium/mono.m3u8"
 };
 
 // scripts.js mejorado
@@ -693,23 +698,23 @@ const DEMO_STREAMS = {
 };
 
 // Versión de tokens - incrementar cuando se actualicen tokens importantes
-const TOKENS_VERSION = 5; // Actualizado el 20 de junio de 2025 con tokens más recientes
+const TOKENS_VERSION = 7; // Actualizado el 20 de junio de 2025 con corrección de función saveToken
 
 // Tokens conocidos para canales específicos (se actualizan manualmente)
 const KNOWN_TOKENS = {
-  "Liga 1 Max": "c2e03f425696468ca1e3b9230f1f1ee18c72240c-d3-1750469065-1750451065",
-  "DIRECTV Sports HD": "c3ed9da19abcab526c1b394236931a6738274b96-f0-1750468356-1750450356",
-  "DIRECTV Sports 2 HD": "f9c0980847c7ab6f43ce639d82424a0017538613-b3-1750468614-1750450614",
-  "DirecTV Plus": "b0c51a090ff1c9b0364a6d94216ab24005dac2b9-8e-1750468639-1750450639",
+  "Liga 1 Max": "a681268fe6dfa0f513f9bcd8eafed913db98290f-2f-1750472860-1750454860",
+  "DIRECTV Sports HD": "956e33a590747b8cd1b1325b8d9c07d7b2d8bb00-c7-1750472825-1750454825",
+  "DIRECTV Sports 2 HD": "08fe0524dec1f097b74b9531ee00b6ce81a54408-61-1750472828-1750454828",
+  "DirecTV Plus": "031f9c309af6ccd639fe06f97a903f58cac11c7c-8d-1750472831-1750454831",
   
-  "ESPN": "5ebd3b6fd9994189b9c74e50816b35623911e218-9d-1750468672-1750450672",
-  "ESPN2": "afe252fc2e722ba63efeff9c60a78b19914b8e2a-f7-1750468702-1750450702",
-  "ESPN3": "bc4e7576f39a85499cfa9867b73be69197568809-96-1750468868-1750450868",
-  "ESPN4": "9cbcc2d151fb98265f63368f047faf87db357369-99-1750468896-1750450896",
-  "ESPN5": "4098b263d430e0aee15a8bd9625d1a852d1ca58f-b0-1750468950-1750450950",
-  "ESPN6": "1ce43655ea57155adbb5cd2e248babbe742e28ed-90-1750468987-1750450987",
-  "ESPN7": "770f517d826eda0e16e1377dd736e728fc92e157-53-1750469035-1750451035",
-  "ESPN Premium": "cd5c813486b003cd022b32d4f4676107f68ffff9-c7-1750469107-1750451107"
+  "ESPN": "c5a74b171e49b1022702479bc250dde57771e1eb-42-1750472834-1750454834",
+  "ESPN2": "b6b732d221d005ff7a92e799553614008abf776c-cb-1750472837-1750454837",
+  "ESPN3": "a744710486ee63a8d6290b265674bb262ad41877-84-1750472841-1750454841",
+  "ESPN4": "e9c61bc73e1e3bce1b5902430548767eb83ab681-d3-1750472844-1750454844",
+  "ESPN5": "a41ddbe916dcff4af4578aa064fa56d6e97e99ef-2-1750472847-1750454847",
+  "ESPN6": "48ffe2fbf34e4bbb88f4ad406cebd3f4ad862b15-42-1750472850-1750454850",
+  "ESPN7": "d9f0d7712302c3c0861a1fe869fafbb33696617d-ae-1750472853-1750454853",
+  "ESPN Premium": "83a85799163c43376ed43d8d7910fcf3109cac2f-fc-1750472857-1750454857"
   // Movistar Deportes y Gol Perú serán añadidos cuando estén disponibles
 };
 
@@ -893,7 +898,7 @@ async function fetchNewLink(channelName) {
       const dsports2Token = KNOWN_TOKENS["DIRECTV Sports 2 HD"];
       // Guardar token en caché
       cacheToken("DIRECTV Sports 2 HD", dsports2Token);
-      return `https://ym9yzq.fubohd.com/dsports2/mono.m3u8?token=${dsports2Token}`;
+      return `https://b2ZmaWNpYWw.fubohd.com/dsports2/mono.m3u8?token=${dsports2Token}`;
     }
     try {
       const res = await fetch(`${API_BASE_URL}/api/stream/dsports2`);
@@ -1641,6 +1646,7 @@ function attachStream(url) {
       const qBadge = document.getElementById('quality-badge');
       if (qBadge && data && data.details) {
         qBadge.textContent = data.details.height + 'p';
+
       }
     });
     
@@ -2373,3 +2379,38 @@ const STREAM_PROVIDERS = {
     'pirlotvhd.com'
   ]
 };
+
+// Función para solicitar la actualización de todos los tokens
+async function requestTokensUpdate() {
+  showStatus('Solicitando actualización de tokens desde el servidor...');
+  
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/tokens/update-all?key=update`);
+    
+    if (response.ok) {
+      const data = await response.json();
+      if (data.success) {
+        // Limpiar tokens locales y forzar recarga
+        clearAllTokenCache();
+        StorageSystem.setItem('tokens_version', TOKENS_VERSION.toString());
+        StorageSystem.setItem('last_mobile_cleanup', Date.now().toString());
+        
+        showStatus('Tokens en proceso de actualización. Recargando página...');
+        
+        // Retrasar la recarga para que el usuario vea el mensaje
+        setTimeout(() => {
+          window.location.href = window.location.pathname + '?force_refresh=true';
+        }, 2000);
+        
+        return true;
+      }
+    }
+    
+    showStatus('Error al solicitar actualización de tokens');
+    return false;
+  } catch (error) {
+    console.error('Error al solicitar actualización de tokens:', error);
+    showStatus('Error al conectar con el servidor de actualización');
+    return false;
+  }
+}

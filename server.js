@@ -96,22 +96,22 @@ function migrateTokensFromJson() {
 // URL directa de canales deportivos (actualizada manualmente el 20 de junio de 2025)
 const DSPORTS_DIRECT_LINKS = {
   // DirecTV Sports
-  dsports: "https://a2vlca.fubohd.com:443/dsports/mono.m3u8?token=c3ed9da19abcab526c1b394236931a6738274b96-f0-1750468356-1750450356",
-  dsports2: "https://ym9yzq.fubohd.com:443/dsports2/mono.m3u8?token=f9c0980847c7ab6f43ce639d82424a0017538613-b3-1750468614-1750450614",
-  dsportsplus: "https://c2f2zq.fubohd.com:443/dsportsplus/mono.m3u8?token=b0c51a090ff1c9b0364a6d94216ab24005dac2b9-8e-1750468639-1750450639",
+  dsports: "https://Y2FzdGxl.fubohd.com:443/dsports/mono.m3u8?token=956e33a590747b8cd1b1325b8d9c07d7b2d8bb00-c7-1750472825-1750454825",
+  dsports2: "https://b2ZmaWNpYWw.fubohd.com:443/dsports2/mono.m3u8?token=08fe0524dec1f097b74b9531ee00b6ce81a54408-61-1750472828-1750454828",
+  dsportsplus: "https://x4bnd7lq.fubohd.com:443/dsportsplus/mono.m3u8?token=031f9c309af6ccd639fe06f97a903f58cac11c7c-8d-1750472831-1750454831",
   
   // ESPN
-  espn: "https://tyg2mnl9.fubohd.com:443/espn/mono.m3u8?token=5ebd3b6fd9994189b9c74e50816b35623911e218-9d-1750468672-1750450672",
-  espn2: "https://am91cm5leQ.fubohd.com:443/espn2/mono.m3u8?token=afe252fc2e722ba63efeff9c60a78b19914b8e2a-f7-1750468702-1750450702",
-  espn3: "https://dglvz29s.fubohd.com:443/espn3/mono.m3u8?token=bc4e7576f39a85499cfa9867b73be69197568809-96-1750468868-1750450868",
-  espn4: "https://aGl2ZQ.fubohd.com:443/espn4/mono.m3u8?token=9cbcc2d151fb98265f63368f047faf87db357369-99-1750468896-1750450896",
-  espn5: "https://bGFuZQ.fubohd.com:443/espn5/mono.m3u8?token=4098b263d430e0aee15a8bd9625d1a852d1ca58f-b0-1750468950-1750450950",
-  espn6: "https://bmf0aw9u.fubohd.com:443/espn6/mono.m3u8?token=1ce43655ea57155adbb5cd2e248babbe742e28ed-90-1750468987-1750450987",
-  espn7: "https://aGl2ZQ.fubohd.com:443/espn7/mono.m3u8?token=770f517d826eda0e16e1377dd736e728fc92e157-53-1750469035-1750451035",
-  espnpremium: "https://agvyby.fubohd.com:443/espnpremium/mono.m3u8?token=cd5c813486b003cd022b32d4f4676107f68ffff9-c7-1750469107-1750451107",
+  espn: "https://bgvnzw5k.fubohd.com:443/espn/mono.m3u8?token=c5a74b171e49b1022702479bc250dde57771e1eb-42-1750472834-1750454834",
+  espn2: "https://Y2FzdGxl.fubohd.com:443/espn2/mono.m3u8?token=b6b732d221d005ff7a92e799553614008abf776c-cb-1750472837-1750454837",
+  espn3: "https://c2nvdxq.fubohd.com:443/espn3/mono.m3u8?token=a744710486ee63a8d6290b265674bb262ad41877-84-1750472841-1750454841",
+  espn4: "https://dmvudge.fubohd.com:443/espn4/mono.m3u8?token=e9c61bc73e1e3bce1b5902430548767eb83ab681-d3-1750472844-1750454844",
+  espn5: "https://qzv4jmsc.fubohd.com:443/espn5/mono.m3u8?token=a41ddbe916dcff4af4578aa064fa56d6e97e99ef-2-1750472847-1750454847",
+  espn6: "https://x4bnd7lq.fubohd.com:443/espn6/mono.m3u8?token=48ffe2fbf34e4bbb88f4ad406cebd3f4ad862b15-42-1750472850-1750454850",
+  espn7: "https://cgxheq.fubohd.com:443/espn7/mono.m3u8?token=d9f0d7712302c3c0861a1fe869fafbb33696617d-ae-1750472853-1750454853",
+  espnpremium: "https://aGl2ZQ.fubohd.com:443/espnpremium/mono.m3u8?token=83a85799163c43376ed43d8d7910fcf3109cac2f-fc-1750472857-1750454857",
   
   // Otros canales
-  liga1max: "https://bgvnzw5k.fubohd.com:443/liga1max/mono.m3u8?token=c2e03f425696468ca1e3b9230f1f1ee18c72240c-d3-1750469065-1750451065"
+  liga1max: "https://bmv3.fubohd.com:443/liga1max/mono.m3u8?token=a681268fe6dfa0f513f9bcd8eafed913db98290f-2f-1750472860-1750454860"
 };
 
 // Servir archivos estáticos desde el directorio actual
@@ -330,6 +330,258 @@ async function extractFromRojaDirecta(eventNameOrChannel) {
   console.log(`Resultados para ${eventNameOrChannel}: ${results.length} streams encontrados`);
   return results;
 }
+
+// Función para extraer tokens y URLs desde pelotalibrehdtv.com
+async function scrapePelotaLibreHDTV(channel) {
+  console.log(`Buscando token para canal ${channel} en pelotalibrehdtv.com...`);
+  
+  // Mapeo de nombres de canales a los identificadores en pelotalibrehdtv
+  const channelMap = {
+    'dsports': 'dsports',
+    'directv': 'dsports',
+    'directv sports': 'dsports',
+    'directv sports hd': 'dsports',
+    'dsports2': 'dsports2',
+    'directv sports 2': 'dsports2',
+    'directv sports 2 hd': 'dsports2',
+    'dsportsplus': 'dsportsplus',
+    'directv plus': 'dsportsplus',
+    'directv sports plus': 'dsportsplus',
+    'espn': 'espn',
+    'espn2': 'espn2',
+    'espn 2': 'espn2',
+    'espn3': 'espn3',
+    'espn 3': 'espn3',
+    'espn4': 'espn4',
+    'espn 4': 'espn4',
+    'espn5': 'espn5',
+    'espn 5': 'espn5',
+    'espn6': 'espn6',
+    'espn 6': 'espn6',
+    'espn7': 'espn7',
+    'espn 7': 'espn7',
+    'espnpremium': 'espnpremium',
+    'espn premium': 'espnpremium',
+    'liga1max': 'liga1max',
+    'liga 1 max': 'liga1max',
+    'movistar deportes': 'movistar',
+    'gol peru': 'golperu'
+  };
+  
+  // Normalizar el nombre del canal
+  const normalizedChannel = channel.toLowerCase().trim();
+  const channelId = channelMap[normalizedChannel] || normalizedChannel;
+  
+  // URL de pelotalibrehdtv para el canal específico
+  const url = `https://pelotalibrehdtv.com/canales.php?stream=${channelId}`;
+  
+  try {
+    // Configurar los headers para parecer un navegador normal
+    const headers = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+      'Accept-Language': 'es-ES,es;q=0.8,en-US;q=0.5,en;q=0.3',
+      'Referer': 'https://pelotalibrehdtv.com/',
+      'Connection': 'keep-alive',
+      'Upgrade-Insecure-Requests': '1',
+      'Cache-Control': 'max-age=0'
+    };
+    
+    // Hacer la petición con un timeout razonable
+    console.log(`Realizando petición a: ${url}`);
+    const response = await fetch(url, {
+      method: 'GET',
+      headers,
+      agent: httpsAgent,
+      timeout: 10000
+    });
+    
+    if (!response.ok) {
+      console.error(`Error al acceder a pelotalibrehdtv: ${response.status} ${response.statusText}`);
+      return null;
+    }
+    
+    const pageContent = await response.text();
+    
+    // Buscar la URL del stream en el HTML usando una expresión regular
+    // Buscamos específicamente la variable playbackURL en el script
+    const playbackUrlMatch = pageContent.match(/var\s+playbackURL\s*=\s*"([^"]+)"/i);
+    
+    if (!playbackUrlMatch || !playbackUrlMatch[1]) {
+      console.warn(`No se encontró la URL del stream para ${channel}`);
+      return null;
+    }
+    
+    const streamUrl = playbackUrlMatch[1];
+    console.log(`Stream URL encontrado: ${streamUrl}`);
+    
+    // Extraer el token de la URL
+    const tokenMatch = streamUrl.match(/token=([^&]+)/);
+    if (!tokenMatch || !tokenMatch[1]) {
+      console.warn(`No se pudo extraer el token para ${channel}`);
+      return null;
+    }
+    
+    const token = tokenMatch[1];
+    
+    // Extraer la URL base sin el token
+    const baseUrlMatch = streamUrl.match(/(.*?)\?token=/);
+    const baseUrl = baseUrlMatch ? baseUrlMatch[1] : null;
+    
+    // Preparar el resultado
+    const result = {
+      channel: channelId,
+      originalChannel: channel,
+      token: token,
+      baseUrl: baseUrl,
+      fullUrl: streamUrl,
+      timestamp: Date.now()
+    };
+    
+    console.log(`Token obtenido con éxito para ${channel}: ${token.substring(0, 15)}...`);
+    
+    // Guardar el token en la base de datos usando la función saveToken
+    saveToken(token, {
+      createdAt: Date.now(),
+      expiresAt: Date.now() + (24 * 60 * 60 * 1000),
+      note: `Auto-scraped for ${channel}`,
+      hours: 24
+    }, (success) => {
+      if (success) {
+        console.log(`Token para ${channel} guardado correctamente en la base de datos`);
+      } else {
+        console.error(`Error al guardar token para ${channel} en la base de datos`);
+      }
+    });
+    
+    // Actualizar el objeto de enlaces directos
+    if (baseUrl && token && channelId) {
+      DSPORTS_DIRECT_LINKS[channelId] = streamUrl;
+      console.log(`Enlace directo actualizado para ${channelId}`);
+    }
+    
+    return result;
+  } catch (error) {
+    console.error(`Error al obtener token para ${channel}:`, error);
+    return null;
+  }
+}
+
+// Función para buscar y actualizar todos los tokens de canales conocidos
+async function updateAllTokens() {
+  console.log('Iniciando actualización automática de todos los tokens...');
+  
+  // Lista de canales para los que queremos obtener tokens
+  const channels = [
+    'dsports',
+    'dsports2',
+    'dsportsplus',
+    'espn',
+    'espn2',
+    'espn3',
+    'espn4',
+    'espn5',
+    'espn6',
+    'espn7',
+    'espnpremium',
+    'liga1max'
+  ];
+  
+  const results = {};
+  let successCount = 0;
+  
+  // Procesar canales en serie para no sobrecargar el servidor objetivo
+  for (const channel of channels) {
+    try {
+      console.log(`Procesando canal: ${channel}`);
+      // Pequeña pausa entre peticiones para no levantar sospechas
+      await new Promise(resolve => setTimeout(resolve, 2000 + Math.random() * 1000));
+      
+      const result = await scrapePelotaLibreHDTV(channel);
+      if (result) {
+        results[channel] = result;
+        successCount++;
+      }
+    } catch (error) {
+      console.error(`Error al actualizar token para ${channel}:`, error);
+    }
+  }
+  
+  console.log(`Actualización de tokens completada. ${successCount}/${channels.length} tokens actualizados.`);
+  return results;
+}
+
+// Endpoint para actualizar manualmente todos los tokens
+app.get('/api/tokens/update-all', async (req, res) => {
+  try {
+    // Verificar si hay una contraseña en la configuración (opcional)
+    const adminKey = req.query.key;
+    if (!adminKey) {
+      return res.status(403).json({ error: 'Acceso no autorizado' });
+    }
+    
+    // Lista de canales para actualizar
+    const channels = [
+      'dsports',
+      'dsports2',
+      'dsportsplus',
+      'espn',
+      'espn2',
+      'espn3',
+      'espn4',
+      'espn5',
+      'espn6',
+      'espn7',
+      'espnpremium',
+      'liga1max'
+    ];
+    
+    // Iniciar la actualización en segundo plano
+    updateAllTokens().then(results => {
+      console.log('Actualización de tokens completada en segundo plano');
+    }).catch(error => {
+      console.error('Error en actualización de tokens en segundo plano:', error);
+    });
+    
+    // Responder inmediatamente
+    res.json({ 
+      success: true, 
+      message: 'Actualización de tokens iniciada en segundo plano',
+      estimatedTime: `${channels.length * 3} segundos`
+    });
+  } catch (error) {
+    console.error('Error al iniciar actualización de tokens:', error);
+    res.status(500).json({ error: 'Error al actualizar tokens' });
+  }
+});
+
+// Endpoint para obtener el token actualizado de un canal específico
+app.get('/api/tokens/update/:channel', async (req, res) => {
+  try {
+    const channel = req.params.channel;
+    
+    if (!channel) {
+      return res.status(400).json({ error: 'Se requiere especificar un canal' });
+    }
+    
+    console.log(`Solicitada actualización de token para canal: ${channel}`);
+    const result = await scrapePelotaLibreHDTV(channel);
+    
+    if (!result) {
+      return res.status(404).json({ error: `No se pudo obtener el token para ${channel}` });
+    }
+    
+    res.json({
+      success: true,
+      channel: result.channel,
+      token: result.token,
+      url: result.fullUrl
+    });
+  } catch (error) {
+    console.error(`Error al actualizar token para ${req.params.channel}:`, error);
+    res.status(500).json({ error: 'Error al actualizar el token' });
+  }
+});
 
 // Servidor Express
 
@@ -1034,6 +1286,28 @@ app.get('/api/mobile/stream', async (req, res) => {
     });
   }
 });
+
+// Configurar tarea programada para actualizar tokens cada 6 horas
+setInterval(async () => {
+  console.log('Ejecutando actualización programada de tokens...');
+  try {
+    await updateAllTokens();
+    console.log('Actualización programada de tokens completada con éxito');
+  } catch (error) {
+    console.error('Error en actualización programada de tokens:', error);
+  }
+}, 6 * 60 * 60 * 1000); // 6 horas en milisegundos
+
+// Ejecutar una actualización inicial al iniciar el servidor (con un pequeño retraso)
+setTimeout(async () => {
+  console.log('Ejecutando actualización inicial de tokens...');
+  try {
+    await updateAllTokens();
+    console.log('Actualización inicial de tokens completada con éxito');
+  } catch (error) {
+    console.error('Error en actualización inicial de tokens:', error);
+  }
+}, 10000); // 10 segundos de retraso para permitir que el servidor se inicie completamente
 
 // Iniciar el servidor
 app.listen(PORT, () => {
