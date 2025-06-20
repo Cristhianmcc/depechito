@@ -1,0 +1,51 @@
+/* Diagnóstico en panel de admin */
+.diagnostic-result {
+  background-color: rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  padding: 15px;
+  margin-top: 15px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.diagnostic-result h4 {
+  margin-top: 0;
+  color: var(--button-primary);
+  font-size: 1rem;
+  margin-bottom: 10px;
+}
+
+.diagnostic-result ul {
+  padding-left: 20px;
+  margin-bottom: 10px;
+}
+
+.diagnostic-result li {
+  margin-bottom: 5px;
+  font-size: 0.9rem;
+}
+
+/* Estilos para botones de éxito */
+.admin-btn.success {
+  background-color: #2e7d32;
+}
+
+/* Estilos para botones pequeños */
+.admin-btn.small {
+  font-size: 0.8rem;
+  padding: 6px 12px;
+  margin-left: 10px;
+}
+
+/* Animación de refresco */
+@keyframes refreshSpin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.fa-sync-alt {
+  transition: all 0.3s ease;
+}
+
+#refresh-tokens:active .fa-sync-alt {
+  animation: refreshSpin 0.5s linear;
+}

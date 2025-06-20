@@ -15,16 +15,31 @@ class AccessManager {
     // Limpiar tokens expirados al iniciar
     this.cleanExpiredTokens();
   }
-  
-  // Cargar tokens almacenados
+    // Cargar tokens almacenados
   loadTokens() {
-    const storedTokens = localStorage.getItem('depechito_access_tokens');
-    return storedTokens ? JSON.parse(storedTokens) : {};
+    try {
+      const storedTokens = localStorage.getItem('depechito_access_tokens');
+      if (!storedTokens) {
+        console.log('No hay tokens almacenados en localStorage');
+        return {};
+      }
+      
+      const parsed = JSON.parse(storedTokens);
+      console.log('Tokens cargados:', Object.keys(parsed).length, 'tokens');
+      return parsed;
+    } catch (error) {
+      console.error('Error al cargar tokens:', error);
+      return {};
+    }
   }
-  
-  // Guardar tokens en localStorage
+    // Guardar tokens en localStorage
   saveTokens() {
-    localStorage.setItem('depechito_access_tokens', JSON.stringify(this.tokens));
+    try {
+      localStorage.setItem('depechito_access_tokens', JSON.stringify(this.tokens));
+      console.log('Tokens guardados correctamente:', Object.keys(this.tokens).length, 'tokens');
+    } catch (error) {
+      console.error('Error al guardar tokens:', error);
+    }
   }
   
   // Verificar si un token es válido
@@ -44,8 +59,7 @@ class AccessManager {
     
     return true;
   }
-  
-  // Generar un nuevo token de acceso
+    // Generar un nuevo token de acceso
   generateToken(hours = 24, note = "") {
     // Crear un token aleatorio
     const token = Math.random().toString(36).substring(2, 15) + 
@@ -62,26 +76,38 @@ class AccessManager {
       hours: hours
     };
     
+    // Asegurar que los tokens se guarden inmediatamente
     this.saveTokens();
+    console.log('Nuevo token generado:', token.substring(0, 5) + '...');
+    
     return { token, expiresAt };
   }
-  
-  // Verificar credenciales de administrador
+    // Verificar credenciales de administrador
   verifyAdmin(password) {
     this.isAdmin = (password === ADMIN_PASSWORD);
     
     if (this.isAdmin) {
       // Almacenar estado de administrador en sessionStorage (se borra al cerrar pestaña)
       sessionStorage.setItem('depechito_admin', 'true');
+      console.log('Acceso de administrador concedido');
+      
+      // Asegurar que tenemos los tokens más recientes
+      this.tokens = this.loadTokens();
     }
     
     return this.isAdmin;
   }
-  
-  // Comprobar si el usuario es administrador
+    // Comprobar si el usuario es administrador
   checkAdminStatus() {
     // Verificar si ya está autenticado como admin en esta sesión
     this.isAdmin = sessionStorage.getItem('depechito_admin') === 'true';
+    
+    if (this.isAdmin) {
+      // Si es administrador, recargar los tokens desde localStorage
+      this.tokens = this.loadTokens();
+      console.log('Estado de administrador verificado - tokens cargados');
+    }
+    
     return this.isAdmin;
   }
   
@@ -144,6 +170,72 @@ class AccessManager {
     });
     
     return result;
+  }
+  
+  // Método de diagnóstico para depurar problemas con tokens
+  diagnosticTokens() {
+    try {
+      const storedData = localStorage.getItem('depechito_access_tokens');
+      const memoryTokensCount = Object.keys(this.tokens).length;
+      let storedTokensCount = 0;
+      
+      console.log('== DIAGNÓSTICO DE TOKENS ==');
+      console.log('Tokens en memoria:', memoryTokensCount);
+      
+      if (storedData) {
+        try {
+          const parsedData = JSON.parse(storedData);
+          storedTokensCount = Object.keys(parsedData).length;
+          console.log('Tokens en localStorage:', storedTokensCount);
+          
+          if (storedTokensCount !== memoryTokensCount) {
+            console.warn('¡Advertencia! Diferencia entre tokens en memoria y localStorage');
+          }
+          
+          // Verificar tokens expirados
+          const now = new Date().getTime();
+          let expiredCount = 0;
+          
+          Object.keys(parsedData).forEach(token => {
+            if (parsedData[token].expiresAt && now > parsedData[token].expiresAt) {
+              expiredCount++;
+            }
+          });
+          
+          console.log('Tokens expirados:', expiredCount);
+        } catch (e) {
+          console.error('Error al parsear datos de localStorage:', e);
+        }
+      } else {
+        console.log('No hay datos en localStorage');
+      }
+      
+      // Verificar token del usuario actual
+      const userToken = localStorage.getItem('depechito_user_token');
+      if (userToken) {
+        console.log('Token de usuario actual:', userToken.substring(0, 5) + '...');
+        console.log('¿Es válido?', this.isValidToken(userToken));
+      } else {
+        console.log('No hay token de usuario actual');
+      }
+      
+      // Verificar estado de administrador
+      console.log('Estado de administrador:', this.isAdmin);
+      console.log('sessionStorage admin:', sessionStorage.getItem('depechito_admin'));
+      
+      console.log('== FIN DIAGNÓSTICO ==');
+      
+      return {
+        memoryTokens: memoryTokensCount,
+        storedTokens: storedTokensCount,
+        isAdmin: this.isAdmin,
+        userToken: userToken ? userToken.substring(0, 5) + '...' : null,
+        userTokenValid: userToken ? this.isValidToken(userToken) : false
+      };
+    } catch (e) {
+      console.error('Error en diagnóstico:', e);
+      return { error: e.message };
+    }
   }
 }
 
@@ -304,10 +396,10 @@ function createAdminPanel() {
         </div>
         <button id="revoke-all" class="admin-btn danger">Revocar todos los códigos</button>
       </div>
-      
-      <div class="admin-section">
+        <div class="admin-section">
         <h4>Acciones</h4>
         <button id="admin-logout" class="admin-btn">Cerrar sesión de administrador</button>
+        <button id="run-diagnostic" class="admin-btn small">Ejecutar diagnóstico</button>
       </div>
     </div>
   `;
@@ -322,10 +414,14 @@ function createAdminPanel() {
   adminBtn.innerHTML = '<i class="fas fa-user-shield"></i>';
   adminBtn.title = 'Panel de Administrador';
   document.body.appendChild(adminBtn);
-  
-  // Evento para abrir panel
+    // Evento para abrir panel
   adminBtn.addEventListener('click', () => {
     adminPanel.classList.add('open');
+    
+    // Recargar los tokens desde localStorage antes de mostrar la lista
+    accessManager.tokens = accessManager.loadTokens();
+    
+    // Actualizar la lista de tokens
     refreshTokensList();
   });
   
@@ -333,8 +429,7 @@ function createAdminPanel() {
   document.getElementById('close-admin').addEventListener('click', () => {
     adminPanel.classList.remove('open');
   });
-  
-  // Generar token
+    // Generar token
   document.getElementById('generate-token').addEventListener('click', () => {
     const hours = parseInt(document.getElementById('token-hours').value) || 24;
     const note = document.getElementById('token-note').value.trim();
@@ -348,6 +443,17 @@ function createAdminPanel() {
     
     // Actualizar lista de tokens
     refreshTokensList();
+    
+    // Mostrar confirmación
+    const generateBtn = document.getElementById('generate-token');
+    const originalText = generateBtn.textContent;
+    generateBtn.textContent = '✓ Código generado';
+    generateBtn.classList.add('success');
+    
+    setTimeout(() => {
+      generateBtn.textContent = originalText;
+      generateBtn.classList.remove('success');
+    }, 2000);
   });
   
   // Copiar token
@@ -405,16 +511,29 @@ function createAdminPanel() {
       alert('Todos los códigos han sido revocados.');
     }
   });
-  
-  // Cerrar sesión de administrador
+    // Cerrar sesión de administrador
   document.getElementById('admin-logout').addEventListener('click', () => {
+    // Guardar los tokens actuales en localStorage antes de cerrar sesión
+    accessManager.saveTokens();
+    
+    // Quitar estado de administrador
     sessionStorage.removeItem('depechito_admin');
+    
+    alert('Has cerrado sesión como administrador. Los códigos generados se han guardado correctamente.');
+    
+    // Recargar la página
     window.location.reload();
   });
-  
-  // Función para actualizar la lista de tokens
+    // Función para actualizar la lista de tokens
   function refreshTokensList() {
     const tokensList = document.getElementById('tokens-list');
+    
+    // Recargar tokens desde localStorage para asegurar sincronización
+    accessManager.tokens = accessManager.loadTokens();
+    
+    // Limpiar tokens expirados
+    accessManager.cleanExpiredTokens();
+    
     const tokens = accessManager.getAllTokens();
     
     if (!tokens || Object.keys(tokens).length === 0) {
@@ -453,6 +572,14 @@ function createAdminPanel() {
         }
       });
     });
+    
+    // Mostrar mensaje de actualización
+    const refreshBtn = document.getElementById('refresh-tokens');
+    const originalHTML = refreshBtn.innerHTML;
+    refreshBtn.innerHTML = '<i class="fas fa-check"></i> Actualizado';
+    setTimeout(() => {
+      refreshBtn.innerHTML = originalHTML;
+    }, 1500);
   }
 }
 

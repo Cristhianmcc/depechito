@@ -212,6 +212,139 @@ function addPlayButton() {
   playerContainer.appendChild(playBtn);
 }
 
+// Funciones de caché de tokens para optimizar las solicitudes y reducir carga en el servidor
+// -----------------------------
+// Estas funciones manejan el almacenamiento y recuperación de tokens en localStorage
+// para evitar solicitudes innecesarias al backend
+
+// Función para obtener un token válido desde la caché
+function getValidCachedToken(channelName) {
+  try {
+    // Obtener el token almacenado para el canal
+    const cacheKey = `token_${channelName.replace(/\s+/g, '_').toLowerCase()}`;
+    const cachedData = localStorage.getItem(cacheKey);
+    
+    if (!cachedData) {
+      console.log(`No hay token en caché para ${channelName}`);
+      return null;
+    }
+    
+    const tokenData = JSON.parse(cachedData);
+    
+    // Verificar si el token ha expirado (considerando un margen de seguridad de 5 minutos)
+    const now = Date.now();
+    const safetyMargin = 5 * 60 * 1000; // 5 minutos en milisegundos
+    
+    if (tokenData.expiresAt && (tokenData.expiresAt - safetyMargin) > now) {
+      console.log(`Usando token en caché para ${channelName} (válido por ${Math.floor((tokenData.expiresAt - now) / 60000)} minutos más)`);
+      return tokenData.token;
+    } else {
+      console.log(`Token en caché para ${channelName} ha expirado o está por expirar`);
+      localStorage.removeItem(cacheKey);
+      return null;
+    }
+  } catch (error) {
+    console.error(`Error al obtener token en caché para ${channelName}:`, error);
+    return null;
+  }
+}
+
+// Función para guardar un token en caché
+function cacheToken(channelName, token, ttlMinutes = 60) {
+  try {
+    // No almacenar tokens vacíos o inválidos
+    if (!token || token.length < 10) {
+      console.warn(`Token inválido para ${channelName}, no se guardará en caché`);
+      return false;
+    }
+    
+    const cacheKey = `token_${channelName.replace(/\s+/g, '_').toLowerCase()}`;
+    const now = Date.now();
+    const expiresAt = now + (ttlMinutes * 60 * 1000);
+    
+    const tokenData = {
+      token: token,
+      timestamp: now,
+      expiresAt: expiresAt,
+      channel: channelName
+    };
+    
+    localStorage.setItem(cacheKey, JSON.stringify(tokenData));
+    console.log(`Token para ${channelName} guardado en caché (expira en ${ttlMinutes} minutos)`);
+    
+    return true;
+  } catch (error) {
+    console.error(`Error al guardar token en caché para ${channelName}:`, error);
+    return false;
+  }
+}
+
+// Función para extraer un token de una URL
+function extractTokenFromUrl(url) {
+  if (!url) return null;
+  
+  // Patrones comunes de tokens en URLs
+  const patterns = [
+    /token=([^&]+)/,  // Formato estándar: token=abc123
+    /hdnts=([^&]+)/,  // Formato Akamai: hdnts=abc123
+    /auth=([^&]+)/,   // Formato auth: auth=abc123
+    /wmsAuthSign=([^&]+)/  // Formato wmsAuthSign: wmsAuthSign=abc123
+  ];
+  
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match && match[1]) {
+      return match[1];
+    }
+  }
+  
+  return null;
+}
+
+// Función para estimar el tiempo de expiración de un token basado en su formato
+function estimateTokenExpiration(token) {
+  if (!token) return 60; // Valor predeterminado: 60 minutos
+  
+  // Buscar timestamps Unix en el token (10 dígitos)
+  const timestampMatch = token.match(/\d{10}/);
+  if (timestampMatch) {
+    const timestamp = parseInt(timestampMatch[0]) * 1000; // Convertir a milisegundos
+    const now = Date.now();
+    
+    // Si el timestamp está en el futuro, probablemente sea una fecha de expiración
+    if (timestamp > now) {
+      const minutesUntilExpiration = Math.floor((timestamp - now) / 60000);
+      // Limitar a un máximo razonable (3 horas)
+      return Math.min(minutesUntilExpiration, 180);
+    }
+  }
+  
+  // Para tokens KNOWN_TOKENS, usar un tiempo de vida más largo (2 horas)
+  // ya que normalmente son actualizados manualmente
+  if (token.length > 40) {
+    return 120;
+  }
+  
+  // Valor predeterminado para otros formatos de token
+  return 60;
+}
+
+// Constantes para la URL base de los diferentes canales
+const CHANNEL_BASE_URLS = {
+  "Liga 1 Max": "https://dglvz29s.fubohd.com/liga1max/mono.m3u8",
+  "DIRECTV Sports HD": "https://am91cm5leQ.fubohd.com/dsports/mono.m3u8",
+  "DIRECTV Sports 2 HD": "https://dglvz29s.fubohd.com/dsports2/mono.m3u8",
+  "DirecTV Plus": "https://b2ZmaWNpYWw.fubohd.com/dsportsplus/mono.m3u8",
+  "ESPN": "https://c2f2zq.fubohd.com/espn/mono.m3u8",
+  "ESPN2": "https://bGFuZQ.fubohd.com/espn2/mono.m3u8",
+  "ESPN3": "https://am91cm5leQ.fubohd.com/espn3/mono.m3u8",
+  "ESPN4": "https://dglvz29s.fubohd.com/espn4/mono.m3u8",
+  "ESPN5": "https://qzv4jmsc.fubohd.com/espn5/mono.m3u8",
+  "ESPN6": "https://agvyby.fubohd.com/espn6/mono.m3u8",
+  "ESPN7": "https://c2f2zq.fubohd.com/espn7/mono.m3u8",
+  "ESPN Premium": "https://a2lja3m.fubohd.com/espnpremium/mono.m3u8"
+};
+
 // scripts.js mejorado
 // -----------------------------
 // Configuración de canales: llena manualmente arrays o déjalos vacíos y se intentará
@@ -234,9 +367,15 @@ const KNOWN_TOKENS = {
   "Liga 1 Max": "f057ff2933c158c4d7fb2ec39c744773bb914657-96-1750403033-1750385033",
   "DIRECTV Sports HD": "5ce9d8f836c84d63b9e4f954a2e267042f666749-4-1750406360-1750388360",
   "DIRECTV Sports 2 HD": "31438de0305feebf6b7830afd1f4e83f2bca8bae-40-1750404198-1750386198",
+  "DirecTV Plus": "48cb7b0db0848802ce359e5f96dd202ecb6de0df-e9-1750413780-1750395780",
+  
   "ESPN": "d30f1c43672f40df77c0205172841bb77db0d4e2-1d-1750404333-1750386333",
   "ESPN2": "2c75a1d5187aac920acbd797c4adaaf26db13910-8b-1750404417-1750386417",
   "ESPN3": "653adc01a02992ff31e8d6331439531a8cf743e9-3f-1750404482-1750386482",
+  "ESPN4": "7cfe9154e356e98d454868c29719cf8b657572d3-7b-1750413957-1750395957",
+  "ESPN5": "e0a8c5b80905b8b4b0ecdd7de82387bc6e6767d9-38-1750414076-1750396076",
+  "ESPN6": "127e6f8c667e81d3ae2d5bfe57324ddd98686f02-35-1750414140-1750396140",
+  "ESPN7": "1f64cda85516f558ff18b92a258a4ff82d747ce6-46-1750414182-1750396182",
   "ESPN Premium": "4e472f822cf5e6278a434107b3ff97cc37aab0f6-36-1750404622-1750386622"
   // Movistar Deportes y Gol Perú serán añadidos cuando estén disponibles
 };
@@ -267,6 +406,9 @@ const LOGOS = {
   "ESPN2": "https://i.ibb.co/wpLwTXr/ESPN2.png",
   "ESPN3": "https://i.ibb.co/L5w0Rf9/ESPN3.png",
   "ESPN4": "https://i.ibb.co/C6YBkNB/ESPN4.png",
+  "ESPN5": "https://i.ibb.co/ZKpddZQ/ESPN.png", // Usando logo de ESPN como base
+  "ESPN6": "https://i.ibb.co/ZKpddZQ/ESPN.png", // Usando logo de ESPN como base
+  "ESPN7": "https://i.ibb.co/ZKpddZQ/ESPN.png", // Usando logo de ESPN como base
   "Liga 1 Max": "https://i.ibb.co/xJ37DbW/Liga1Max.png",
   "Gol Perú": "https://i.ibb.co/FnhznGr/GolPeru.png",
   "DirecTV Plus": "https://i.ibb.co/Z1h95KP/DIRECTVPlus.png"
@@ -282,6 +424,9 @@ const CHANNELS = {
   "ESPN2": [],
   "ESPN3": [],
   "ESPN4": [],
+  "ESPN5": [],
+  "ESPN6": [],
+  "ESPN7": [],
   "Liga 1 Max": [],
   "Gol Perú": [],
   // Agregar canales de demostración como canales regulares para fácil acceso
@@ -338,13 +483,24 @@ async function fetchNewLink(channelName) {
   // Log para depuración en producción
   console.log(`Intentando obtener enlace para: ${channelName} desde ${API_BASE_URL}`);
   
-  // Verificar si tenemos un token conocido para el canal
+  // Verificar si tenemos un token en caché para el canal
+  const cachedToken = getValidCachedToken(channelName);
   const lower = channelName.toLowerCase();
+  
+  // Si tenemos un token en caché, construir la URL correspondiente
+  if (cachedToken && CHANNEL_BASE_URLS[channelName]) {
+    console.log(`Usando token en caché para ${channelName}: ${cachedToken.substring(0, 10)}...`);
+    return `${CHANNEL_BASE_URLS[channelName]}?token=${cachedToken}`;
+  }
   
   // Usar los tokens conocidos en KNOWN_TOKENS cuando estén disponibles
   if (KNOWN_TOKENS[channelName]) {
     const token = KNOWN_TOKENS[channelName];
     console.log(`Usando token fijo para ${channelName}: ${token.substring(0, 10)}...`);
+    
+    // Estimar la duración del token y guardarlo en caché
+    const ttl = estimateTokenExpiration(token);
+    cacheToken(channelName, token, ttl);
     
     // URLs específicas según el canal
     if (lower.includes('liga 1 max')) {
@@ -369,6 +525,13 @@ async function fetchNewLink(channelName) {
     const rojaUrl = await getFromRojaDirecta(channelName);
     if (rojaUrl) {
       console.log(`Usando stream de RojaDirecta para ${channelName}`);
+      
+      // Extraer y guardar el token si está disponible
+      const extractedToken = extractTokenFromUrl(rojaUrl);
+      if (extractedToken) {
+        cacheToken(channelName, extractedToken);
+      }
+      
       return rojaUrl;
     }
   } catch (error) {
@@ -379,45 +542,158 @@ async function fetchNewLink(channelName) {
   if (lower.includes('directv sports 2') || lower.includes('dsports2')) {
     if (KNOWN_TOKENS["DIRECTV Sports 2 HD"]) {
       const dsports2Token = KNOWN_TOKENS["DIRECTV Sports 2 HD"];
+      // Guardar token en caché
+      cacheToken("DIRECTV Sports 2 HD", dsports2Token);
       return `https://dglvz29s.fubohd.com/dsports2/mono.m3u8?token=${dsports2Token}`;
     }
     try {
       const res = await fetch(`${API_BASE_URL}/api/stream/dsports2`);
       const data = await res.json();
+      
+      // Extraer y guardar el token si está disponible
+      if (data.url) {
+        const extractedToken = extractTokenFromUrl(data.url);
+        if (extractedToken) {
+          cacheToken("DIRECTV Sports 2 HD", extractedToken);
+        }
+      }
+      
       return data.url;
     } catch (e) {
       console.warn('Proxy dsports2 failed', e);
     }    } else if (lower.includes('espn premium')) {
       if (KNOWN_TOKENS["ESPN Premium"]) {
         const espnPremiumToken = KNOWN_TOKENS["ESPN Premium"];
+        // Guardar token en caché
+        cacheToken("ESPN Premium", espnPremiumToken);
         return `https://a2lja3m.fubohd.com/espnpremium/mono.m3u8?token=${espnPremiumToken}`;
       }
       try {
         const res = await fetch(`${API_BASE_URL}/api/stream/espnpremium`);
         const data = await res.json();
+        
+        // Extraer y guardar el token si está disponible
+        if (data.url) {
+          const extractedToken = extractTokenFromUrl(data.url);
+          if (extractedToken) {
+            cacheToken("ESPN Premium", extractedToken);
+          }
+        }
+        
         return data.url;
       } catch (e) {
         console.warn('Proxy espnpremium failed', e);
       }} else if (lower.includes('espn4') || lower.includes('espn 4')) {
       if (KNOWN_TOKENS["ESPN4"]) {
         const espn4Token = KNOWN_TOKENS["ESPN4"];
-        return `https://ag9wzq.fubohd.com/espn4/mono.m3u8?token=${espn4Token}`;
+        // Guardar token en caché
+        cacheToken("ESPN4", espn4Token);
+        return `https://dglvz29s.fubohd.com/espn4/mono.m3u8?token=${espn4Token}`;
       }
       try {
         const res = await fetch(`${API_BASE_URL}/api/stream/espn4`);
         const data = await res.json();
+        
+        // Extraer y guardar el token si está disponible
+        if (data.url) {
+          const extractedToken = extractTokenFromUrl(data.url);
+          if (extractedToken) {
+            cacheToken("ESPN4", extractedToken);
+          }
+        }
+        
         console.log('Using URL for ESPN4:', data.url);
         return data.url;
       } catch (e) {
         console.warn('Proxy espn4 failed', e);
+      }    } else if (lower.includes('espn5') || lower.includes('espn 5')) {
+      if (KNOWN_TOKENS["ESPN5"]) {
+        const espn5Token = KNOWN_TOKENS["ESPN5"];
+        // Guardar token en caché
+        cacheToken("ESPN5", espn5Token);
+        return `https://qzv4jmsc.fubohd.com/espn5/mono.m3u8?token=${espn5Token}`;
+      }
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/stream/espn5`);
+        const data = await res.json();
+        
+        // Extraer y guardar el token si está disponible
+        if (data.url) {
+          const extractedToken = extractTokenFromUrl(data.url);
+          if (extractedToken) {
+            cacheToken("ESPN5", extractedToken);
+          }
+        }
+        
+        console.log('Using URL for ESPN5:', data.url);
+        return data.url;
+      } catch (e) {
+        console.warn('Proxy espn5 failed', e);
+      }    } else if (lower.includes('espn6') || lower.includes('espn 6')) {
+      if (KNOWN_TOKENS["ESPN6"]) {
+        const espn6Token = KNOWN_TOKENS["ESPN6"];
+        // Guardar token en caché
+        cacheToken("ESPN6", espn6Token);
+        return `https://agvyby.fubohd.com/espn6/mono.m3u8?token=${espn6Token}`;
+      }
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/stream/espn6`);
+        const data = await res.json();
+        
+        // Extraer y guardar el token si está disponible
+        if (data.url) {
+          const extractedToken = extractTokenFromUrl(data.url);
+          if (extractedToken) {
+            cacheToken("ESPN6", extractedToken);
+          }
+        }
+        
+        console.log('Using URL for ESPN6:', data.url);
+        return data.url;
+      } catch (e) {
+        console.warn('Proxy espn6 failed', e);
+      }    } else if (lower.includes('espn7') || lower.includes('espn 7')) {
+      if (KNOWN_TOKENS["ESPN7"]) {
+        const espn7Token = KNOWN_TOKENS["ESPN7"];
+        // Guardar token en caché
+        cacheToken("ESPN7", espn7Token);
+        return `https://c2f2zq.fubohd.com/espn7/mono.m3u8?token=${espn7Token}`;
+      }
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/stream/espn7`);
+        const data = await res.json();
+        
+        // Extraer y guardar el token si está disponible
+        if (data.url) {
+          const extractedToken = extractTokenFromUrl(data.url);
+          if (extractedToken) {
+            cacheToken("ESPN7", extractedToken);
+          }
+        }
+        
+        console.log('Using URL for ESPN7:', data.url);
+        return data.url;
+      } catch (e) {
+        console.warn('Proxy espn7 failed', e);
       }    } else if (lower.includes('espn3') || lower.includes('espn 3')) {
       if (KNOWN_TOKENS["ESPN3"]) {
         const espn3Token = KNOWN_TOKENS["ESPN3"];
+        // Guardar token en caché
+        cacheToken("ESPN3", espn3Token);
         return `https://am91cm5leQ.fubohd.com/espn3/mono.m3u8?token=${espn3Token}`;
       }
       try {
         const res = await fetch(`${API_BASE_URL}/api/stream/espn3`);
         const data = await res.json();
+        
+        // Extraer y guardar el token si está disponible
+        if (data.url) {
+          const extractedToken = extractTokenFromUrl(data.url);
+          if (extractedToken) {
+            cacheToken("ESPN3", extractedToken);
+          }
+        }
+        
         console.log('Using URL for ESPN3:', data.url);
         return data.url;
       } catch (e) {
@@ -425,72 +701,170 @@ async function fetchNewLink(channelName) {
       }    } else if (lower.includes('espn2') || lower.includes('espn 2')) {
       if (KNOWN_TOKENS["ESPN2"]) {
         const espn2Token = KNOWN_TOKENS["ESPN2"];
+        // Guardar token en caché
+        cacheToken("ESPN2", espn2Token);
         return `https://bGFuZQ.fubohd.com/espn2/mono.m3u8?token=${espn2Token}`;
       }
       try {
         const res = await fetch(`${API_BASE_URL}/api/stream/espn2`);
         const data = await res.json();
+        
+        // Extraer y guardar el token si está disponible
+        if (data.url) {
+          const extractedToken = extractTokenFromUrl(data.url);
+          if (extractedToken) {
+            cacheToken("ESPN2", extractedToken);
+          }
+        }
+        
         console.log('Using URL for ESPN2:', data.url);
         return data.url;
       } catch (e) {
         console.warn('Proxy espn2 failed', e);
-      }    } else if (lower.includes('espn') && !lower.includes('espn2') && !lower.includes('espn 2') && !lower.includes('espn3') && !lower.includes('espn 3') && !lower.includes('espn4') && !lower.includes('espn 4')) {
+      }    } else if (lower.includes('espn') && 
+        !lower.includes('espn2') && !lower.includes('espn 2') && 
+        !lower.includes('espn3') && !lower.includes('espn 3') && 
+        !lower.includes('espn4') && !lower.includes('espn 4') &&
+        !lower.includes('espn5') && !lower.includes('espn 5') &&
+        !lower.includes('espn6') && !lower.includes('espn 6') &&
+        !lower.includes('espn7') && !lower.includes('espn 7')) {
       if (KNOWN_TOKENS["ESPN"]) {
         const espnToken = KNOWN_TOKENS["ESPN"];
+        // Guardar token en caché
+        cacheToken("ESPN", espnToken);
         return `https://c2f2zq.fubohd.com/espn/mono.m3u8?token=${espnToken}`;
       }
       try {
         const res = await fetch(`${API_BASE_URL}/api/stream/espn`);
         const data = await res.json();
+        
+        // Extraer y guardar el token si está disponible
+        if (data.url) {
+          const extractedToken = extractTokenFromUrl(data.url);
+          if (extractedToken) {
+            cacheToken("ESPN", extractedToken);
+          }
+        }
+        
         console.log('Using URL for ESPN:', data.url);
+        return data.url;
         return data.url;
       } catch (e) {
         console.warn('Proxy espn failed', e);
       }    } else if (lower.includes('directv sports') && !lower.includes('plus')) {
       if (KNOWN_TOKENS["DIRECTV Sports HD"]) {
         const dsportsToken = KNOWN_TOKENS["DIRECTV Sports HD"];
+        // Guardar token en caché
+        cacheToken("DIRECTV Sports HD", dsportsToken);
         return `https://aw1wcm92zq.fubohd.com/dsports/mono.m3u8?token=${dsportsToken}`;
       }
       try {
         const res = await fetch(`${API_BASE_URL}/api/stream/dsports`);
         const data = await res.json();
+        
+        // Extraer y guardar el token si está disponible
+        if (data.url) {
+          const extractedToken = extractTokenFromUrl(data.url);
+          if (extractedToken) {
+            cacheToken("DIRECTV Sports HD", extractedToken);
+          }
+        }
+        
         console.log('Using URL for DirecTV Sports:', data.url);
         return data.url;
       } catch (e) {
         console.warn('Proxy dsports failed', e);
       }
   } else if (lower.includes('gol peru') || lower.includes('golperu') || lower.includes('gol perú')) {
+    // Verificar si tenemos token en caché
+    const cachedToken = getValidCachedToken("Gol Perú");
+    if (cachedToken && CHANNEL_BASE_URLS["Gol Perú"]) {
+      console.log(`Usando token en caché para Gol Perú: ${cachedToken.substring(0, 10)}...`);
+      return `${CHANNEL_BASE_URLS["Gol Perú"]}?token=${cachedToken}`;
+    }
+    
     try {
       const res = await fetch(`${API_BASE_URL}/api/stream/golperu`);
       const data = await res.json();
+      
+      // Extraer y guardar el token si está disponible
+      if (data.url) {
+        const extractedToken = extractTokenFromUrl(data.url);
+        if (extractedToken) {
+          cacheToken("Gol Perú", extractedToken);
+        }
+      }
+      
       return data.url;
     } catch (e) {
       console.warn('Proxy golperu failed', e);
     }    } else if (lower.includes('liga 1 max')) {
       if (KNOWN_TOKENS["Liga 1 Max"]) {
         const liga1Token = KNOWN_TOKENS["Liga 1 Max"];
+        // Guardar token en caché
+        cacheToken("Liga 1 Max", liga1Token);
         return `https://dglvz29s.fubohd.com/liga1max/mono.m3u8?token=${liga1Token}`;
       }
       try {
         const res = await fetch(`${API_BASE_URL}/api/stream/liga1max`);
         const data = await res.json();
+        
+        // Extraer y guardar el token si está disponible
+        if (data.url) {
+          const extractedToken = extractTokenFromUrl(data.url);
+          if (extractedToken) {
+            cacheToken("Liga 1 Max", extractedToken);
+          }
+        }
+        
         return data.url;
       } catch (e) {
         console.warn('Proxy liga1max failed', e);
       }
   } else if (lower.includes('movistar')) {
+    // Verificar si tenemos token en caché
+    const cachedToken = getValidCachedToken("Movistar Deportes");
+    if (cachedToken && CHANNEL_BASE_URLS["Movistar Deportes"]) {
+      console.log(`Usando token en caché para Movistar Deportes: ${cachedToken.substring(0, 10)}...`);
+      return `${CHANNEL_BASE_URLS["Movistar Deportes"]}?token=${cachedToken}`;
+    }
+    
     try {
       const res = await fetch(`${API_BASE_URL}/api/stream/movistar`);
       const data = await res.json();
+      
+      // Extraer y guardar el token si está disponible
+      if (data.url) {
+        const extractedToken = extractTokenFromUrl(data.url);
+        if (extractedToken) {
+          cacheToken("Movistar Deportes", extractedToken);
+        }
+      }
+      
       console.log('Using URL for Movistar:', data.url);
       return data.url;
     } catch (e) {
       console.warn('Proxy movistar failed', e);
     }
   } else if (lower.includes('directv plus')) {
+    if (KNOWN_TOKENS["DirecTV Plus"]) {
+      const dsportsPlusToken = KNOWN_TOKENS["DirecTV Plus"];
+      // Guardar token en caché
+      cacheToken("DirecTV Plus", dsportsPlusToken);
+      return `https://b2ZmaWNpYWw.fubohd.com/dsportsplus/mono.m3u8?token=${dsportsPlusToken}`;
+    }
     try {
       const res = await fetch(`${API_BASE_URL}/api/stream/dsportsplus`);
       const data = await res.json();
+      
+      // Extraer y guardar el token si está disponible
+      if (data.url) {
+        const extractedToken = extractTokenFromUrl(data.url);
+        if (extractedToken) {
+          cacheToken("DirecTV Plus", extractedToken);
+        }
+      }
+      
       console.log('Using URL for DirecTV Plus:', data.url);
       return data.url;
     } catch (e) {
@@ -738,6 +1112,13 @@ function attachStream(url) {
   if (token) {
     console.log('URL con token detectada:', token.substring(0, 10) + '...');
     
+    // Guardar el token en la caché
+    if (currentChannel) {
+      const ttl = estimateTokenExpiration(token);
+      cacheToken(currentChannel, token, ttl);
+      console.log(`Token guardado en caché para ${currentChannel} (TTL: ${ttl} minutos)`);
+    }
+    
     if (isTokenProbablyExpired(token)) {
       console.warn('El token del stream podría haber expirado, intentando obtener uno nuevo...');
       showStatus('⚠️ El enlace podría haber expirado. Intentando obtener uno nuevo...');
@@ -830,18 +1211,33 @@ function attachStream(url) {
       const tokenMatch = url.match(/token=([^&]+)/);
       if (tokenMatch && tokenMatch[1]) {
         console.log('Token encontrado y almacenado para futura referencia: ' + currentChannel);
+        // Guardar en sessionStorage para compatibilidad con código existente
         sessionStorage.setItem(`${currentChannel.replace(/\s+/g, '_').toLowerCase()}_token`, tokenMatch[1]);
+        
+        // También guardar en nuestra caché más inteligente
+        const ttl = estimateTokenExpiration(tokenMatch[1]);
+        cacheToken(currentChannel, tokenMatch[1], ttl);
       }
     }
     
     // Si es un stream de Liga 1 Max con fuboHD, verificar si tenemos un token almacenado
     if (currentChannel.includes('Liga 1') && isFubohdStream && !url.includes('token=')) {
-      const storedToken = sessionStorage.getItem('liga1max_token');
-      if (storedToken) {
+      // Primero intentar con nuestra caché avanzada
+      const cachedToken = getValidCachedToken("Liga 1 Max");
+      if (cachedToken) {
         // Extraer la base URL sin token
         const baseUrl = url.split('?')[0];
-        url = `${baseUrl}?token=${storedToken}`;
-        console.log('Usando token almacenado para Liga 1 Max');
+        url = `${baseUrl}?token=${cachedToken}`;
+        console.log('Usando token almacenado en caché para Liga 1 Max');
+      } else {
+        // Si no hay en caché avanzada, intentar con sessionStorage como fallback
+        const storedToken = sessionStorage.getItem('liga1max_token');
+        if (storedToken) {
+          // Extraer la base URL sin token
+          const baseUrl = url.split('?')[0];
+          url = `${baseUrl}?token=${storedToken}`;
+          console.log('Usando token almacenado para Liga 1 Max');
+        }
       }
     }
     
@@ -1084,6 +1480,21 @@ function loadChannel(name, directUrl = null) {
     attachStream(CHANNELS[name][sourceIndex]);
   } else {
     console.log(`No hay URL conocida para ${name}, buscando una...`);
+    
+    // Verificar primero si tenemos un token en caché
+    const cachedToken = getValidCachedToken(name);
+    if (cachedToken && CHANNEL_BASE_URLS[name]) {
+      console.log(`Usando token en caché para ${name}: ${cachedToken.substring(0, 10)}...`);
+      const url = `${CHANNEL_BASE_URLS[name]}?token=${cachedToken}`;
+      
+      if (!CHANNELS[name]) CHANNELS[name] = [];
+      CHANNELS[name].push(url);
+      sourceIndex = CHANNELS[name].length - 1;
+      attachStream(url);
+      return;
+    }
+    
+    // Si no hay token en caché, intentar obtener uno nuevo
     fetchNewLink(name).then(url => {
       if (url) {
         console.log(`URL encontrada para ${name}: ${url.substring(0, 50)}...`);
@@ -1359,8 +1770,45 @@ function addRojaDirectaSearchButton(channelName) {
   playerContainer.appendChild(searchBtn);
 }
 
-// Inicializar la aplicación cuando el DOM esté listo
+// Función para limpiar periódicamente los tokens expirados de la caché
+function cleanupExpiredTokens() {
+  try {
+    console.log('Limpiando tokens expirados del caché...');
+    const now = Date.now();
+    let removedCount = 0;
+    
+    // Recorrer todas las claves en localStorage que correspondan a tokens
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('token_')) {
+        try {
+          const data = JSON.parse(localStorage.getItem(key));
+          if (data.expiresAt && data.expiresAt < now) {
+            localStorage.removeItem(key);
+            removedCount++;
+            console.log(`Token expirado eliminado: ${data.channel}`);
+          }
+        } catch (e) {
+          // Si hay un error al parsear, eliminar la entrada corrupta
+          localStorage.removeItem(key);
+          console.warn(`Eliminada entrada corrupta de caché: ${key}`);
+        }
+      }
+    });
+    
+    console.log(`Limpieza completada: ${removedCount} tokens expirados eliminados`);
+  } catch (error) {
+    console.error('Error al limpiar tokens expirados:', error);
+  }
+}
+
+// Programar limpieza periódica (cada 30 minutos)
+setInterval(cleanupExpiredTokens, 30 * 60 * 1000);
+
+// También ejecutar al iniciar la aplicación
 document.addEventListener('DOMContentLoaded', () => {
+  // Ejecutar limpieza al inicio (después de 10 segundos para no interferir con la carga)
+  setTimeout(cleanupExpiredTokens, 10000);
+  
   console.log('Inicializando aplicación...');
   
   // Verificar si la biblioteca dash.js está disponible
@@ -1406,7 +1854,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (channelList && channelList.children.length > 0) {
       // Intentar encontrar un canal de demostración primero
       const demoChannel = Array.from(channelList.children).find(li => 
-        li.textContent === "NASA TV" || li.textContent === "Red Bull TV" || li.textContent === "Ejemplo 1"
+        li.textContent.includes("DIRECTV Sports HD")
       );
       
       if (demoChannel) {
