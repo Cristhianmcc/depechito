@@ -6,11 +6,11 @@
     <meta name="theme-color" content="#3a8c3e">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>De Pechito - Canales Deportivos</title>
+    <title>Machetero TV - Canales Deportivos en Vivo</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="soccer-theme.css">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">    <link rel="stylesheet" href="soccer-theme.css">
     <link rel="stylesheet" href="responsive-extras.css">
+    <link rel="stylesheet" href="auth-styles.css">
     <!-- Favicon para evitar error 404 -->
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚽</text></svg>">
     <!-- Font Awesome para iconos deportivos -->
@@ -20,9 +20,12 @@
 </head>
 <body>    <header>
         <h1><i class="fas fa-futbol ball-icon"></i> Canales de TV en Vivo <i class="fas fa-futbol ball-icon"></i></h1>
-        <h2>De Pechito</h2>
+        <div class="brand-container">
+            <img src="img/logo.png" alt="Machetero TV Logo" class="brand-logo">
+            <h2>Machetero Tv</h2>
+        </div>
         <p>Elige un canal para comenzar a ver en vivo.</p>
-    </header>    <div class="container">
+    </header><div class="container">
         <div class="channel-list">
             <div class="search-container">
                 <input id="search" type="text" placeholder="Buscar canal..." />
@@ -52,7 +55,7 @@
         </div>
     </div>    <footer>
         <div class="footer-content">
-            <p>&copy; 2025 De Pechito <i class="fas fa-futbol ball-icon"></i> El mejor lugar para ver deportes en vivo</p>
+            <p>&copy; 2025 Machetero Tv <i class="fas fa-futbol ball-icon"></i> El mejor lugar para ver deportes en vivo</p>
             <div class="footer-icons">
                 <i class="fas fa-futbol"></i>
                 <i class="fas fa-trophy"></i>
@@ -60,9 +63,8 @@
                 <i class="fas fa-stopwatch"></i>
             </div>
         </div>
-    </footer>
-
-    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    </footer>    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <script src="auth.js"></script>
     <script src="scripts.js"></script>
     
 </body>

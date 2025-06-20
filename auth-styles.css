@@ -1,0 +1,457 @@
+/* Estilos para el sistema de autenticación de De Pechito TV */
+
+/* Overlay de login */
+.login-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, rgba(44, 103, 47, 0.95), rgba(58, 140, 62, 0.95), rgba(74, 172, 78, 0.95));
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+
+/* Contenedor del formulario de login */
+.login-container {
+  background-color: rgba(0, 0, 0, 0.8);
+  border-radius: 15px;
+  padding: 30px;
+  width: 90%;
+  max-width: 500px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: white;
+  animation: fadeIn 0.5s ease-out;
+}
+
+/* Cabecera del login */
+.login-header {
+  text-align: center;
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 2px solid var(--button-primary);
+}
+
+.login-header h2 {
+  font-size: 2rem;
+  margin: 10px 0;
+  color: var(--button-primary);
+}
+
+.login-header .ball-icon {
+  font-size: 3rem;
+  color: white;
+  animation: bounce 2s infinite;
+}
+
+/* Formulario de login */
+.login-form {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Tabs de login */
+.login-tabs {
+  display: flex;
+  margin-bottom: 20px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 12px;
+  border: none;
+  background-color: rgba(0, 0, 0, 0.5);
+  color: white;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.tab-btn.active {
+  background-color: var(--button-primary);
+  font-weight: bold;
+}
+
+.tab-btn:hover:not(.active) {
+  background-color: rgba(231, 76, 60, 0.3);
+}
+
+/* Contenido de las tabs */
+.tab-content {
+  display: none;
+}
+
+.tab-content.active {
+  display: block;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.tab-content p {
+  margin-bottom: 15px;
+  text-align: center;
+}
+
+/* Campos de formulario */
+.login-form input {
+  padding: 15px;
+  margin-bottom: 15px;
+  border: none;
+  border-radius: 8px;
+  background-color: rgba(255, 255, 255, 0.1);
+  color: white;
+  font-size: 1rem;
+}
+
+.login-form input:focus {
+  outline: none;
+  background-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 0 0 2px var(--button-primary);
+}
+
+.login-form input::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* Botón de login */
+.login-btn {
+  padding: 15px;
+  border: none;
+  border-radius: 8px;
+  background-color: var(--button-primary);
+  color: white;
+  font-size: 1.1rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.login-btn:hover {
+  background-color: var(--button-hover);
+  transform: translateY(-2px);
+}
+
+.login-btn:active {
+  transform: translateY(1px);
+}
+
+/* Mensajes de feedback */
+.message {
+  margin-top: 15px;
+  padding: 10px;
+  border-radius: 5px;
+  text-align: center;
+}
+
+.message.error {
+  background-color: rgba(231, 76, 60, 0.3);
+  border-left: 4px solid #e74c3c;
+}
+
+.message.success {
+  background-color: rgba(46, 204, 113, 0.3);
+  border-left: 4px solid #2ecc71;
+}
+
+/* Panel de administrador */
+.admin-panel {
+  position: fixed;
+  top: 0;
+  right: -400px;
+  width: 100%;
+  max-width: 400px;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.9);
+  box-shadow: -5px 0 15px rgba(0, 0, 0, 0.5);
+  color: white;
+  z-index: 9000;
+  transition: right 0.3s ease;
+  overflow-y: auto;
+}
+
+.admin-panel.open {
+  right: 0;
+}
+
+/* Cabecera del panel admin */
+.admin-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px;
+  background-color: var(--button-primary);
+  color: white;
+}
+
+.admin-header h3 {
+  margin: 0;
+  font-size: 1.3rem;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 1.5rem;
+  cursor: pointer;
+}
+
+/* Contenido del panel admin */
+.admin-content {
+  padding: 15px;
+}
+
+.admin-section {
+  margin-bottom: 30px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.admin-section h4 {
+  margin: 0 0 15px 0;
+  color: var(--button-primary);
+  font-size: 1.2rem;
+}
+
+/* Formularios admin */
+.form-group {
+  margin-bottom: 15px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 0.9rem;
+  opacity: 0.8;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 10px;
+  background-color: rgba(255, 255, 255, 0.1);
+  border: none;
+  border-radius: 5px;
+  color: white;
+}
+
+.form-group input:focus {
+  outline: none;
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Botones admin */
+.admin-btn {
+  width: 100%;
+  padding: 12px;
+  background-color: var(--button-primary);
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: bold;
+  margin-top: 10px;
+  transition: all 0.2s ease;
+}
+
+.admin-btn:hover {
+  background-color: var(--button-hover);
+}
+
+.admin-btn.small {
+  padding: 8px;
+  font-size: 0.9rem;
+  width: auto;
+}
+
+.admin-btn.danger {
+  background-color: #e74c3c;
+}
+
+.admin-btn.danger:hover {
+  background-color: #c0392b;
+}
+
+/* Contenedor de token generado */
+.token-result {
+  margin-top: 20px;
+  padding: 15px;
+  background-color: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.token-result.hidden {
+  display: none;
+}
+
+.token-result h5 {
+  margin: 0 0 10px 0;
+  color: var(--button-primary);
+}
+
+.token-display {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.token-display span {
+  flex-grow: 1;
+  background-color: rgba(0, 0, 0, 0.3);
+  padding: 10px;
+  border-radius: 5px;
+  font-family: monospace;
+  font-size: 1.1rem;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.copy-btn {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 1.2rem;
+  margin-left: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.copy-btn:hover {
+  color: var(--button-primary);
+}
+
+.share-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background-color: #3498db;
+}
+
+.share-btn:hover {
+  background-color: #2980b9;
+}
+
+/* Lista de tokens */
+.tokens-list {
+  margin: 15px 0;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.token-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px;
+  background-color: rgba(255, 255, 255, 0.05);
+  border-radius: 5px;
+  margin-bottom: 8px;
+}
+
+.token-info {
+  flex-grow: 1;
+  overflow: hidden;
+}
+
+.token-code {
+  font-family: monospace;
+  font-size: 0.9rem;
+  margin-bottom: 5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.token-details {
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+
+.token-note {
+  color: var(--button-primary);
+  margin-right: 10px;
+}
+
+.revoke-btn {
+  background-color: rgba(231, 76, 60, 0.3);
+  border: none;
+  color: white;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.revoke-btn:hover {
+  background-color: #e74c3c;
+}
+
+/* Botón flotante de admin */
+.floating-btn {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background-color: var(--button-primary);
+  color: white;
+  border: none;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+  font-size: 1.2rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 8000;
+  transition: all 0.3s ease;
+}
+
+.floating-btn:hover {
+  background-color: var(--button-hover);
+  transform: scale(1.1);
+}
+
+/* Animaciones */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes bounce {
+  0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+  40% { transform: translateY(-20px); }
+  60% { transform: translateY(-10px); }
+}
+
+/* Media queries */
+@media (max-width: 480px) {
+  .login-container {
+    padding: 20px;
+  }
+  
+  .login-header h2 {
+    font-size: 1.5rem;
+  }
+  
+  .login-form input, .login-btn {
+    padding: 12px;
+  }
+  
+  .admin-panel {
+    max-width: 300px;
+  }
+}

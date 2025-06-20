@@ -104,6 +104,34 @@ header h1 {
   gap: 15px;
 }
 
+/* Contenedor para el logo y el nombre */
+.brand-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 10px;
+  position: relative;
+  gap: 5px;
+}
+
+/* Estilos para el logo */
+.brand-logo {
+  height: 50px;
+  width: auto;
+  margin-right: 15px;
+  object-fit: contain;
+  filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.5));
+  transition: all 0.3s ease;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.1);
+  padding: 3px;
+}
+
+.brand-logo:hover {
+  transform: scale(1.1);
+  background: rgba(255,255,255,0.2);
+}
+
 header h2 {
   font-size: 1.8rem;
   margin-bottom: 10px;
@@ -774,6 +802,18 @@ footer p {
     font-size: 1.8rem;
     gap: 10px;
   }
+    .brand-container {
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    margin: 5px 0;
+  }
+  
+  .brand-logo {
+    height: 40px;
+    margin-right: 10px;
+    padding: 2px;
+  }
   
   header h2 {
     font-size: 1.4rem;
@@ -819,6 +859,14 @@ footer p {
   
   header h2 {
     font-size: 1.2rem;
+  }
+  
+  .brand-container {
+    margin: 8px 0;
+  }
+  
+  .brand-logo {
+    height: 38px;
   }
   
   .channel-list h2, .video-player h2 {
@@ -877,6 +925,15 @@ footer p {
   
   header p {
     font-size: 0.9rem;
+  }
+  
+  .brand-container {
+    gap: 3px;
+  }
+  
+  .brand-logo {
+    height: 32px;
+    margin-right: 5px;
   }
   
   .channel-list, .video-player {
