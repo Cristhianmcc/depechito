@@ -22,12 +22,27 @@ const httpsAgent = new https.Agent({
   rejectUnauthorized: false
 });
 
+// URL directa de DirecTV Sports (actualizada manualmente cuando sea necesario)
+const DSPORTS_DIRECT_LINKS = {
+  // Token actualizado para DirecTV Sports HD (con token de prueba)
+  dsports: "https://dtv-latam-jbc.akamaized.net/dash/live/2028183/dtv-latam-jbc/master.mpd?hdnts=exp=1750395976~acl=/*~id=978c878f-c352-49d9-9ab4-5fcdfad3012f~data=hdntl~hmac=46c73f02b17e365af62b7d63cecd880a6242e065",
+  dsports2: "https://ag9wzq.fubohd.com:443/dsports2/mono.m3u8?token=46c73f02b17e365af62b7d63cecd880a6242e065-90-1750395976-1750377976",
+  dsportsplus: "https://eWVz.fubohd.com:443/dsportsplus/mono.m3u8?token=46c73f02b17e365af62b7d63cecd880a6242e065-90-1750395976-1750377976"
+};
+
 // Servir archivos estáticos desde el directorio actual
 app.use(express.static(__dirname));
 
 // Helper to extract first m3u8 URL from HTML
 function extractM3U8(html) {
   const regex = /https?:[^"'\s]+\.m3u8[^"'\s]*/i;
+  const match = html.match(regex);
+  return match ? match[0] : null;
+}
+
+// Helper para extraer URLs MPD (para DASH)
+function extractMPD(html) {
+  const regex = /https?:[^"'\s]+\.mpd[^"'\s]*/i;
   const match = html.match(regex);
   return match ? match[0] : null;
 }
@@ -60,6 +75,17 @@ app.get('/api/stream/:channel', async (req, res) => {
   };
   const slug = mapping[req.params.channel.toLowerCase().replace(/\s+/g, '')];
   if (!slug) return res.status(400).json({ error: 'Channel not supported' });
+  
+  // Verificar si debemos usar un enlace directo de DirecTV Sports
+  const shouldUseDirectLink = req.query.refresh !== 'true' && 
+    DSPORTS_DIRECT_LINKS[slug] && 
+    (slug === 'dsports' || slug === 'dsports2' || slug === 'dsportsplus');
+  
+  if (shouldUseDirectLink) {
+    console.log(`Usando enlace directo para ${slug}`);
+    return res.json({ url: DSPORTS_DIRECT_LINKS[slug] });
+  }
+  
   try {
     const candidateDomains = [
       'pelotalibrehdtv.com',
@@ -193,6 +219,55 @@ app.get('/api/stream/:channel', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Scraping failed' });
+  }
+});
+
+// Endpoint para generar URLs de DirecTV Sports con token actualizado
+app.get('/api/stream/directv-dash', async (req, res) => {
+  try {
+    // Base URL para DirecTV Sports sin token
+    const baseUrl = "https://dtv-latam-jbc.akamaized.net/dash/live/2028183/dtv-latam-jbc/master.mpd";
+    
+    // Si se proporciona un token como parámetro, actualizar el almacenado
+    if (req.query.token) {
+      console.log('Actualizando token para DirecTV Sports');
+      DSPORTS_DIRECT_LINKS.dsports = baseUrl + "?hdnts=" + req.query.token;
+    }
+    
+    // Si tenemos un enlace directo con token actualizado, lo usamos
+    if (DSPORTS_DIRECT_LINKS.dsports && DSPORTS_DIRECT_LINKS.dsports.includes('hdnts=')) {
+      console.log('Devolviendo enlace directo de DirecTV Sports con token existente');
+      return res.json({ url: DSPORTS_DIRECT_LINKS.dsports });
+    }
+    
+    // Si se solicita un token actualizado, intentar obtenerlo de la URL proporcionada
+    if (req.query.updateToken === 'true' && req.query.tokenUrl) {
+      try {
+        console.log('Intentando obtener token desde URL externa');
+        // Aquí podríamos implementar lógica para obtener el token desde una fuente externa
+      } catch (tokenError) {
+        console.error('Error actualizando token:', tokenError);
+      }
+    }
+    
+    // Si llegamos aquí y tenemos alguna URL configurada, usamos esa
+    if (DSPORTS_DIRECT_LINKS.dsports) {
+      console.log('Devolviendo la URL configurada para DirecTV Sports');
+      return res.json({ 
+        url: DSPORTS_DIRECT_LINKS.dsports,
+        message: "Usando URL configurada" 
+      });
+    }
+    
+    // Si no hay un token válido, devolvemos un mensaje
+    console.log('Devolviendo URL sin token para DirecTV Sports');
+    return res.json({ 
+      url: baseUrl,
+      message: "Se requiere un token actualizado para reproducir DirecTV Sports" 
+    });
+  } catch (error) {
+    console.error('Error obteniendo URL de DirecTV Sports:', error);
+    res.status(500).json({ error: 'Error obteniendo URL de DirecTV Sports' });
   }
 });
 

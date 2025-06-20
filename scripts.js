@@ -1,3 +1,18 @@
+// Esta función ahora está definida al principio del archivo para evitar errores de referencia
+function removeDashWarningMessage() {
+  // Buscar cualquier mensaje de advertencia relacionado con DASH
+  const allElements = document.querySelectorAll('div');
+  allElements.forEach(el => {
+    if (el.textContent && 
+        (el.textContent.includes('formato DASH') || 
+         el.textContent.includes('requiere un reproductor diferente') ||
+         el.textContent.includes('DASH detectado'))) {
+      console.log('Eliminando mensaje de advertencia DASH:', el.textContent);
+      el.remove();
+    }
+  });
+}
+
 // scripts.js mejorado
 // -----------------------------
 // Configuración de canales: llena manualmente arrays o déjalos vacíos y se intentará
@@ -9,9 +24,10 @@ const PLAYLIST_URLS = []; // dejado vacío por si se quiere volver a usar
 // URLs de demostración que funcionan en producción - Usar sólo para pruebas
 const DEMO_STREAMS = {
   "Ejemplo 1": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8", // Stream de prueba 1080p
-  "Ejemplo 2": "https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8", // Stream de prueba más estable
   "NASA TV": "https://ntv1.akamaized.net/hls/live/2014075/NASA-NTV1-HLS/master.m3u8", // NASA TV pública
-  "Red Bull TV": "https://rbmn-live.akamaized.net/hls/live/590964/BoRB-AT/master.m3u8" // Red Bull TV
+  "Red Bull TV": "https://rbmn-live.akamaized.net/hls/live/590964/BoRB-AT/master.m3u8", // Red Bull TV
+  "Demo HLS": "https://cph-p2p-msl.akamaized.net/hls/live/2000341/test/master.m3u8", // Stream HLS con buena compatibilidad
+  "Demo Bajo": "https://bitdash-a.akamaihd.net/content/MI201109210084_1/m3u8s/f08e80da-bf1d-4e3d-8899-f0f6155f6efa.m3u8" // Stream de baja calidad que suele funcionar bien
 };
 
 // API base URL - cambia automáticamente entre desarrollo y producción
@@ -46,7 +62,7 @@ const LOGOS = {
 };
 
 const CHANNELS = {
-  "DIRECTV Sports HD": [],
+  "DIRECTV Sports HD": ["https://dtv-latam-jbc.akamaized.net/dash/live/2028183/dtv-latam-jbc/master.mpd"], // Enlace de DirecTV Sports sin token para que el servidor pueda agregar un token actualizado
   "DIRECTV Sports 2 HD": [],
   "DirecTV Plus": [],
   "Movistar Deportes": [],
@@ -57,7 +73,9 @@ const CHANNELS = {
   "ESPN4": [],
   "Liga 1 Max": [],
   "Gol Perú": [],
-  
+  // Agregar canales de demostración como canales regulares para fácil acceso
+  "NASA TV Public": ["https://ntv1.akamaized.net/hls/live/2014075/NASA-NTV1-HLS/master.m3u8"],
+  "Red Bull TV": ["https://rbmn-live.akamaized.net/hls/live/590964/BoRB-AT/master.m3u8"]
 };
 
 // ---- Utilidades para playlist M3U externa ----
@@ -220,6 +238,49 @@ async function fetchNewLink(channelName) {
   }
 }
 
+// Función para obtener la URL con token actualizado para DIRECTV Sports HD
+async function getDirecTVSportsURL() {
+  try {
+    console.log('Obteniendo URL actualizada para DirecTV Sports...');
+    const response = await fetch(`${API_BASE_URL}/api/stream/directv-dash`);
+    const data = await response.json();
+    
+    // Eliminar cualquier mensaje de advertencia DASH
+    removeDashWarningMessage();
+    
+    if (data.url) {
+      console.log('URL de DirecTV Sports obtenida correctamente');
+      
+      // Si la URL no tiene token, pero tenemos uno almacenado de una sesión anterior, usar ese
+      const tokenParam = sessionStorage.getItem('directv_sports_token');
+      if (tokenParam && !data.url.includes('hdnts=') && data.url.includes('master.mpd')) {
+        console.log('Usando token almacenado de sesión anterior');
+        return `${data.url}?hdnts=${tokenParam}`;
+      }
+      
+      return data.url;
+    } else {
+      console.error('No se pudo obtener URL de DirecTV Sports:', data.message || 'Error desconocido');
+      
+      // Intentar usar la URL base con el token almacenado si tenemos uno
+      const baseUrl = "https://dtv-latam-jbc.akamaized.net/dash/live/2028183/dtv-latam-jbc/master.mpd";
+      const tokenParam = sessionStorage.getItem('directv_sports_token');
+      
+      if (tokenParam) {
+        console.log('Intentando con token almacenado');
+        return `${baseUrl}?hdnts=${tokenParam}`;
+      }
+      
+      return CHANNELS["DIRECTV Sports HD"][0];
+    }
+  } catch (error) {
+    console.error('Error obteniendo URL de DirecTV Sports:', error);
+    
+    // En caso de error, devolver la URL que tenemos almacenada
+    return CHANNELS["DIRECTV Sports HD"][0];
+  }
+}
+
 //--------------------------------------
 // UI helpers
 //--------------------------------------
@@ -250,11 +311,189 @@ let sourceIndex = 0;
 let hls = null;
 const video = document.getElementById('player');
 
+// Reproductor DASH
+let dashPlayer = null;
+
+// Función para limpiar el reproductor DASH
+function cleanupDashPlayer() {
+  if (dashPlayer) {
+    try {
+      dashPlayer.destroy();
+      dashPlayer = null;
+      console.log('Reproductor DASH limpiado correctamente');
+    } catch (error) {
+      console.error('Error al limpiar el reproductor DASH:', error);
+    }
+  }
+}
+
+// Función para configurar el reproductor DASH
+function setupDashPlayer(url) {
+  try {
+    const video = document.getElementById('player');
+    
+    // Verificar si la biblioteca DASH.js está cargada
+    if (typeof dashjs === 'undefined') {
+      console.error('Error: DASH.js no está cargado. No se puede reproducir este contenido.');
+      showStatus('❌ Error: No se puede reproducir este contenido DASH. Biblioteca DASH.js no está cargada.');
+      return;
+    }
+    
+    // Limpiamos cualquier instancia previa de Dash.js
+    cleanupDashPlayer();
+    
+    // Inicializamos el reproductor DASH
+    dashPlayer = dashjs.MediaPlayer().create();
+    dashPlayer.initialize(video, url, true);
+    dashPlayer.updateSettings({
+      'streaming': {
+        'lowLatencyEnabled': false,
+        'abr': {
+          'autoSwitchBitrate': {
+            'video': true
+          }
+        },
+        'buffer': {
+          'stableBufferTime': 20,
+          'bufferTimeAtTopQuality': 10,
+          'bufferTimeAtTopQualityLongForm': 10
+        }
+      }
+    });
+    
+    // Manejadores de eventos
+    dashPlayer.on(dashjs.MediaPlayer.events.ERROR, function(e) {
+      console.error('Error en DASH player:', e);
+      if (e.error === 'download' || e.error === 'manifestError') {
+        showStatus(`❌ Error al cargar el stream: ${currentChannel}. El enlace podría haber expirado o estar protegido.`);
+        handleStreamError(true);
+      }
+    });
+    
+    dashPlayer.on(dashjs.MediaPlayer.events.QUALITY_CHANGE_RENDERED, function(e) {
+      const qBadge = document.getElementById('quality-badge');
+      if (qBadge && dashPlayer.getBitrateInfoListFor("video") && dashPlayer.getBitrateInfoListFor("video")[e.newQuality]) {
+        const height = dashPlayer.getBitrateInfoListFor("video")[e.newQuality].height || '';
+        qBadge.textContent = height ? height + 'p' : '';
+      }
+    });
+    
+    showStatus(`Reproduciendo ${currentChannel}`);
+    
+    // Intentamos reproducir con manejo de errores para la política de autoplay
+    const playPromise = video.play();
+    if (playPromise !== undefined) {
+      playPromise.catch(error => {
+        console.log('Autoplay prevented:', error);
+        showStatus('Haz clic en PLAY ▶️ para comenzar la reproducción');
+        addPlayButton();
+      });
+    }
+    
+  } catch (error) {
+    console.error('Error al configurar el reproductor DASH:', error);
+    showStatus('❌ Error al configurar el reproductor DASH. Intenta con otro canal.');
+  }
+}
+
+// Función para inicializar el reproductor DASH
+function initDashPlayer(url) {
+  // Verificar si la biblioteca DASH.js está disponible
+  if (typeof dashjs === 'undefined') {
+    console.log('La biblioteca DASH.js no está cargada. Cargando desde CDN...');
+    const script = document.createElement('script');
+    script.src = 'https://cdn.dashjs.org/latest/dash.all.min.js';
+    script.onload = () => {
+      console.log('Biblioteca DASH.js cargada correctamente');
+      setupDashPlayer(url);
+    };
+    script.onerror = () => {
+      console.error('Error al cargar DASH.js');
+      showStatus('❌ No se pudo cargar la biblioteca DASH.js para reproducir este canal.');
+    };
+    document.head.appendChild(script);
+  } else {
+    setupDashPlayer(url);
+  }
+}
+
+// Funciones auxiliares para reproducción
+function extractStreamToken(url) {
+  if (!url) return null;
+  
+  // Extraer token en varios formatos
+  if (url.includes('token=')) {
+    const tokenMatch = url.match(/token=([^&]+)/);
+    return tokenMatch ? tokenMatch[1] : null;
+  } else if (url.includes('hdnts=')) {
+    const tokenMatch = url.match(/hdnts=([^&]+)/);
+    return tokenMatch ? tokenMatch[1] : null;
+  }
+  
+  return null;
+}
+
+function isTokenProbablyExpired(token) {
+  // Tokens de 32 caracteres o más suelen incluir timestamps
+  if (!token || token.length < 32) return false;
+  
+  // Tokens con fechas unix (10 dígitos) suelen expirar
+  const hasUnixTimestamp = /\d{10}/.test(token);
+  
+  // Si es un token largo (más de 40 caracteres) y contiene números, es probable que esté basado en tiempo
+  return (token.length > 40 && /\d+/.test(token)) || hasUnixTimestamp;
+}
+
+function tryCorsBypassProxy(url) {
+  // Intentar con diversos servicios de proxy CORS
+  if (!url) return url;
+  
+  // Solo aplicar a URLs específicas que sabemos que pueden tener problemas
+  if (url.includes('akamaized.net') || url.includes('mux.dev')) {
+    return `https://cors.consumet.stream/${url}`;
+  }
+  return url;
+}
+
+function needsProxyAccess(url) {
+  // Dominios conocidos que suelen requerir proxy por bloqueos CORS o restricciones
+  const restrictedDomains = [
+    'akamaized.net', 
+    'fubo', 
+    'espn',
+    'mux.dev',
+    'directv',
+    'dsports'
+  ];
+  
+  return restrictedDomains.some(domain => url.toLowerCase().includes(domain));
+}
+
+function checkHlsSupport() {
+  const result = {
+    hlsJs: typeof Hls !== 'undefined' && Hls.isSupported(),
+    native: false
+  };
+  
+  const videoTest = document.createElement('video');
+  if (videoTest.canPlayType('application/vnd.apple.mpegurl') || 
+      videoTest.canPlayType('application/x-mpegURL')) {
+    result.native = true;
+  }
+  
+  return result;
+}
+
+// Función para adjuntar y reproducir el stream
 function attachStream(url) {
+  // Limpiar reproductor HLS si existe
   if (hls) {
     hls.destroy();
     hls = null;
   }
+  
+  // Limpiar reproductor DASH si existe
+  cleanupDashPlayer();
   
   showStatus(`Intentando conectar a ${currentChannel}...`);
   console.log(`Intentando conectar a stream: ${url}`);
@@ -263,6 +502,17 @@ function attachStream(url) {
   if (window.location.protocol === 'https:' && url.startsWith('http:')) {
     console.warn('Intentando cargar un stream HTTP desde una página HTTPS, esto puede ser bloqueado por el navegador');
     showStatus('⚠️ Este stream usa HTTP inseguro y puede ser bloqueado. Intentando cargar...');
+  }
+  
+  // Verificar si la URL contiene un token y si podría haber expirado
+  const token = extractStreamToken(url);
+  if (token) {
+    console.log('URL con token detectada:', token.substring(0, 10) + '...');
+    
+    if (isTokenProbablyExpired(token)) {
+      console.warn('El token del stream podría haber expirado, intentando obtener uno nuevo...');
+      showStatus('⚠️ El enlace podría haber expirado. Intentando obtener uno nuevo...');
+    }
   }
   
   // Revisa si el stream es de los proveedores conocidos que podrían tener restricciones CORS
@@ -288,14 +538,92 @@ function attachStream(url) {
     }
   }
   
-  if (Hls.isSupported()) {
-    hls = new Hls({ 
-      maxBufferSize: 60 * 1000 * 1000,
-      xhrSetup: function(xhr) {
-        // No intentamos modificar cabeceras prohibidas
-        // Nota: Intentar modificar Origin y Referer causa errores y es bloqueado por el navegador
+  // Verificar la compatibilidad del navegador con HLS
+  const hlsSupport = checkHlsSupport();
+  
+  if (!hlsSupport.hlsJs && !hlsSupport.native) {
+    showStatus('⚠️ Tu navegador no soporta la reproducción de HLS. Prueba con Chrome, Safari o Firefox actualizado.');
+    console.error('Este navegador no es compatible con HLS');
+    return;
+  }
+  
+  // Verificar si el stream es de formato MPD (DASH)
+  if (url.endsWith('.mpd') || url.includes('.mpd?')) {
+    console.log('Detectado stream en formato DASH (MPD)');
+    showStatus('Iniciando reproductor DASH para DirecTV Sports...');
+    
+    // Eliminar cualquier mensaje de advertencia DASH
+    removeDashWarningMessage();
+    
+    // Guardar el token si existe para futuras reproducciones
+    if (url.includes('hdnts=')) {
+      const tokenMatch = url.match(/hdnts=([^&]+)/);
+      if (tokenMatch && tokenMatch[1]) {
+        console.log('Token encontrado y almacenado para futura referencia');
+        sessionStorage.setItem('directv_sports_token', tokenMatch[1]);
       }
-    });
+    }
+    
+    // Llamar a la función de configuración DASH directamente
+    setupDashPlayer(url);
+    return;
+  }
+  
+  // Verificar si el stream es de formato MPD (DASH)
+  if (url.endsWith('.mpd') || url.includes('.mpd?')) {
+    console.log('Detectado stream en formato DASH (MPD)');
+    showStatus('Iniciando reproductor DASH para DirecTV Sports...');
+    
+    // Eliminar cualquier mensaje de advertencia DASH
+    removeDashWarningMessage();
+    
+    // Guardar el token si existe para futuras reproducciones
+    if (url.includes('hdnts=')) {
+      const tokenMatch = url.match(/hdnts=([^&]+)/);
+      if (tokenMatch && tokenMatch[1]) {
+        console.log('Token encontrado y almacenado para futura referencia');
+        sessionStorage.setItem('directv_sports_token', tokenMatch[1]);
+      }
+    }
+    
+    // Llamar a la función de configuración DASH directamente
+    setupDashPlayer(url);
+    return;
+  }
+  
+  if (Hls.isSupported()) {
+    // Configuración optimizada para streams de fubohd.com y proveedores deportivos
+    const isFubohdStream = url.includes('fubohd.com');
+    const isAkamaiStream = url.includes('akamaized.net');
+    const isSpecialStream = isFubohdStream || url.includes('dsports') || url.includes('directv') || isAkamaiStream;
+    
+    const hlsConfig = { 
+      maxBufferSize: 60 * 1000 * 1000,
+      maxMaxBufferLength: 30,     // Aumentar para manejar mejor las interrupciones
+      maxBufferHole: 0.5,         // Reducir para mejorar el manejo de huecos
+      maxStarvationDelay: 4,      // Aumentar para dar más tiempo antes de abandonar
+      maxLoadingDelay: 4,         // Aumentar tiempo de carga
+      lowLatencyMode: false,      // Desactivar modo de baja latencia para mejorar estabilidad
+      // Configuraciones específicas para streams deportivos
+      abrEwmaDefaultEstimate: 500000, // Aumentar el ancho de banda estimado inicial
+      abrBandWidthFactor: 0.95,   // Conservador para evitar cambios frecuentes
+      abrBandWidthUpFactor: 0.7,  // Más conservador para subidas de calidad
+      startLevel: -1,             // Automático, que elija la mejor calidad inicial
+      xhrSetup: function(xhr) {
+        // Configuramos cabeceras permitidas
+        xhr.withCredentials = false; // Desactivar credenciales para reducir problemas CORS
+      }
+    };
+    
+    // Si es un stream de fubohd, personalizar aún más la configuración
+    if (isFubohdStream) {
+      console.log('Configuración optimizada para stream de fubohd.com');
+      hlsConfig.fragLoadingTimeOut = 20000;    // Más tiempo para cargar fragmentos
+      hlsConfig.manifestLoadingTimeOut = 15000; // Más tiempo para cargar el manifiesto
+      hlsConfig.levelLoadingTimeOut = 15000;    // Más tiempo para cargar niveles
+    }
+    
+    hls = new Hls(hlsConfig);
     
     hls.loadSource(url);
     hls.attachMedia(video);
@@ -327,69 +655,15 @@ function attachStream(url) {
       // Registramos el error en consola para depuración
       console.error('HLS Error:', data.type, data.details, data);
       
-      // Manejo específico para errores de manifestLoadError (muy comunes en streaming deportivo)
-      if (data.details === 'manifestLoadError') {
-        // Revisar si es un error HTTP 403 Forbidden
-        const is403Error = data.response && data.response.code === 403;
-        
-        if (is403Error) {
-          console.log('Detectado error 403 Forbidden - El proveedor está bloqueando activamente el acceso');
-          showStatus(`⛔ Acceso bloqueado por el proveedor del stream (Error 403). El canal ${currentChannel} no permite reproducción externa.`);
-          
-          // Mostrar mensaje específico para errores 403 en canales deportivos
-          if (currentChannel.includes('DIRECTV') || 
-              currentChannel.includes('ESPN') || 
-              currentChannel.includes('Movistar') || 
-              currentChannel.includes('Gol') ||
-              currentChannel.includes('Liga 1')) {
-            
-            showBlockedStreamMessage(currentChannel);
-            
-            // No intentamos más alternativas con este proveedor si es un error 403
-            if (data.fatal) {
-              handleStreamError(true, true); // El segundo parámetro indica un error 403
-              return;
-            }
-          }
-        }
-        
-        // Verificar si es un stream que requiere proxy
-        if (needsProxyAccess(data.url)) {
-          console.log('Error de carga de manifiesto en un dominio restringido. Intentando con proxy...');
-          
-          // Para canales deportivos específicos, intentamos usar directamente la API del servidor
-          if (currentChannel.includes('DIRECTV') || 
-              currentChannel.includes('ESPN') || 
-              currentChannel.includes('Movistar') || 
-              currentChannel.includes('Gol') ||
-              currentChannel.includes('Liga 1')) {
-            
-            // Informamos al usuario que estamos intentando una alternativa
-            showStatus(`El acceso directo a ${currentChannel} está bloqueado. Intentando a través del servidor...`);
-            
-            // Forzamos el siguiente intento
-            if (data.fatal) {
-              handleStreamError(true); // Pasamos true para indicar que es un error de acceso
-              return;
-            }
-          }
-        }
-      }
-      
       // Si el error es fatal, intentamos otra fuente
       if (data.fatal) {
         console.log('Error fatal detectado, intentando recuperar...');
         handleStreamError();
-      } else if (data.details === 'levelLoadError') {
-        // Intentamos reconectar con la misma fuente después de un breve retraso
-        // Esto puede ayudar con errores temporales de red
-        console.log('Error de carga de nivel, reintentando...');
-        setTimeout(() => {
-          hls.startLoad();
-        }, 1000);
       }
     });
-  } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+  } else if (video.canPlayType('application/vnd.apple.mpegurl') || video.canPlayType('application/x-mpegURL')) {
+    // Fallback para Safari y iOS que soportan HLS nativamente
+    console.log('Usando soporte nativo de HLS para este navegador');
     video.src = url;
     video.addEventListener('loadedmetadata', () => {
       const playPromise = video.play();
@@ -406,54 +680,204 @@ function attachStream(url) {
     }, { once: true });
     video.addEventListener('error', (e) => {
       console.error('Video error:', e);
-      handleStreamError();
+      if (e.target.error && e.target.error.code === 4) {
+        showStatus(`⚠️ Error de formato: Este video no puede reproducirse en tu navegador. Intenta con Chrome.`);
+      } else {
+        handleStreamError();
+      }
     }, { once: true });
   } else {
-    showStatus('Tu navegador no soporta HLS.');
+    // No hay soporte para HLS
+    showStatus('⚠️ Tu navegador no soporta la reproducción de videos HLS. Intenta con Chrome o Safari actualizado.');
+    console.error('Este navegador no es compatible con la reproducción HLS');
+    setTimeout(() => {
+      showTryDemoChannelsMessage();
+    }, 3000);
   }
 }
 
-// Función para añadir un botón de reproducción visible
-function addPlayButton() {
-  let playBtn = document.getElementById('manual-play-btn');
-  if (!playBtn) {
-    playBtn = document.createElement('button');
-    playBtn.id = 'manual-play-btn';
-    playBtn.textContent = '▶️ Reproducir';
-    playBtn.style.padding = '10px 20px';
-    playBtn.style.fontSize = '16px';
-    playBtn.style.margin = '10px auto';
-    playBtn.style.display = 'block';
-    playBtn.style.backgroundColor = '#3498db';
-    playBtn.style.color = 'white';
-    playBtn.style.border = 'none';
-    playBtn.style.borderRadius = '5px';
-    playBtn.style.cursor = 'pointer';
+//--------------------------------------
+// Inicialización de la aplicación
+//--------------------------------------
+
+// Función para configurar el filtro de búsqueda
+function setupSearchFilter() {
+  const searchInput = document.getElementById('search');
+  if (!searchInput) return;
+  
+  searchInput.addEventListener('input', () => {
+    const query = searchInput.value.toLowerCase();
+    const items = document.querySelectorAll('#channel-list li');
     
-    playBtn.addEventListener('click', () => {
-      video.play().then(() => {
-        showStatus(`Reproduciendo ${currentChannel}`);
-        playBtn.style.display = 'none';
-      }).catch(err => {
-        console.error('Error al intentar reproducir:', err);
-        showStatus('No se pudo iniciar la reproducción. Intenta en otra pestaña o navegador.');
-      });
+    items.forEach(item => {
+      const text = item.textContent.toLowerCase();
+      item.style.display = text.includes(query) ? 'flex' : 'none';
+    });
+  });
+}
+
+// Función para cargar la lista de canales en la UI
+function setupChannelList() {
+  const channelList = document.getElementById('channel-list');
+  if (!channelList) return;
+  
+  // Limpiar lista existente
+  channelList.innerHTML = '';
+  
+  // Primero agregamos los canales de deportes y TV normal
+  Object.keys(CHANNELS).forEach(name => {
+    const item = document.createElement('li');
+    item.textContent = name;
+    
+    // Agregar clase especial para canales de demostración para destacarlos
+    if (name === 'NASA TV Public' || name === 'Red Bull TV') {
+      item.classList.add('demo-channel');
+    }
+    
+    // Agregar logo si está disponible
+    if (LOGOS[name]) {
+      const logo = document.createElement('img');
+      logo.src = LOGOS[name];
+      logo.alt = name;
+      logo.className = 'channel-logo-small';
+      item.prepend(logo);
+    }
+    
+    item.addEventListener('click', () => {
+      // Marcar como activo
+      document.querySelectorAll('#channel-list li').forEach(li => li.classList.remove('active'));
+      item.classList.add('active');
+      
+      // Cargar canal
+      loadChannel(name);
     });
     
-    const playerContainer = document.querySelector('.video-player');
-    playerContainer.insertBefore(playBtn, document.getElementById('status-msg'));
+    channelList.appendChild(item);
+  });
+  
+  // Luego agregamos los canales de demostración explícitamente como parte de la lista
+  Object.keys(DEMO_STREAMS).forEach(name => {
+    // Sólo agregar si no existe ya en CHANNELS
+    if (!CHANNELS[name]) {
+      const item = document.createElement('li');
+      item.textContent = name;
+      item.classList.add('demo-channel'); // Clase especial para destacarlos
+      
+      item.addEventListener('click', () => {
+        // Marcar como activo
+        document.querySelectorAll('#channel-list li').forEach(li => li.classList.remove('active'));
+        item.classList.add('active');
+        
+        // Cargar canal
+        loadChannel(name);
+      });
+      
+      channelList.appendChild(item);
+    }
+  });
+  
+  console.log(`Configurados ${channelList.children.length} canales en la UI`);
+}
+
+// Función para cargar un canal seleccionado
+function loadChannel(name, directUrl = null) {
+  currentChannel = name;
+  sourceIndex = 0;
+  
+  // Ocultar mensajes anteriores
+  const elements = document.querySelectorAll('.status, #welcome-msg, #try-demo-msg, #blocked-stream-msg, #fubo-token-msg');
+  elements.forEach(el => {
+    if (el) el.style.display = 'none';
+  });
+  
+  // Mostrar logo y título
+  const logo = document.getElementById('channel-logo');
+  if (logo) {
+    logo.src = LOGOS[name] || '';
+    logo.style.display = LOGOS[name] ? 'block' : 'none';
+  }
+  
+  const title = document.getElementById('channel-title');
+  if (title) {
+    title.textContent = name;
+  }
+  
+  showStatus(`Cargando ${name}...`);
+  
+  // Si es un canal de demostración, usar la URL directamente
+  if (DEMO_STREAMS[name]) {
+    console.log(`Usando URL de demostración para ${name}`);
+    attachStream(DEMO_STREAMS[name]);
+    return;
+  }
+  
+  // Caso especial para DirecTV Sports HD usando DASH
+  if (name === "DIRECTV Sports HD") {
+    console.log("Obteniendo URL especial para DirecTV Sports HD");
+    getDirecTVSportsURL().then(url => {
+      if (url) {
+        console.log(`URL obtenida para DirecTV Sports HD: ${url.substring(0, 50)}...`);
+        attachStream(url);
+      } else {
+        showStatus("No se pudo obtener la URL para DirecTV Sports HD");
+        showBlockedStreamMessage(name);
+      }
+    }).catch(error => {
+      console.error("Error obteniendo URL para DirecTV Sports HD:", error);
+      showStatus(`Error: ${error.message}`);
+      showBlockedStreamMessage(name);
+    });
+    return;
+  }
+  
+  // Para otros canales, intentar usar las URLs conocidas o buscar una nueva
+  if (CHANNELS[name] && CHANNELS[name].length > 0) {
+    sourceIndex = 0;
+    attachStream(CHANNELS[name][sourceIndex]);
   } else {
-    playBtn.style.display = 'block';
+    console.log(`No hay URL conocida para ${name}, buscando una...`);
+    fetchNewLink(name).then(url => {
+      if (url) {
+        console.log(`URL encontrada para ${name}: ${url.substring(0, 50)}...`);
+        if (!CHANNELS[name]) CHANNELS[name] = [];
+        CHANNELS[name].push(url);
+        sourceIndex = CHANNELS[name].length - 1;
+        attachStream(url);
+      } else {
+        showStatus(`No se encontró ningún enlace para ${name}`);
+        
+        // Para canales deportivos, mostrar mensaje específico
+        if (name.includes('DIRECTV') || 
+            name.includes('ESPN') || 
+            name.includes('Movistar') || 
+            name.includes('Gol') ||
+            name.includes('Liga 1')) {
+          
+          showBlockedStreamMessage(name);
+        } else {
+          // Para otros canales, mostrar mensaje genérico
+          showTryDemoChannelsMessage();
+        }
+      }
+    }).catch(err => {
+      console.error(`Error buscando enlace para ${name}:`, err);
+      showStatus(`Error buscando enlace: ${err.message}`);
+      showTryDemoChannelsMessage();
+    });
   }
 }
-// esto es para manejar errores de reproducción , si no se puede reproducir la fuente actual , se intenta con la siguiente 
-function handleStreamError(isAccessError = false, is403Error = false) {
-  const list = CHANNELS[currentChannel];
+
+// Función para manejar errores de reproducción
+function handleStreamError(isAccessError = false, is403Error = false, isFubohdError = false) {
+  // Limpiar reproductor DASH si existe
+  cleanupDashPlayer();
+
+  const list = CHANNELS[currentChannel] || [];
   
   // Si es un error 403 específico, mostramos un mensaje claro y no intentamos más
   if (is403Error) {
     console.log(`Error 403 detectado para ${currentChannel}. El proveedor bloquea la reproducción.`);
-    showStatus(`⛔ El proveedor de ${currentChannel} bloquea activamente la reproducción desde nuestro sitio.`);
+    showStatus(`⛔ El proveedor de ${currentChannel} bloquea activamente la reproducción.`);
     showBlockedStreamMessage(currentChannel);
     return; // No intentamos más con este canal si hay un bloqueo activo
   }
@@ -473,6 +897,7 @@ function handleStreamError(isAccessError = false, is403Error = false) {
       if (url) {
         console.log(`Nueva URL obtenida a través del proxy para ${currentChannel}`);
         // Agregamos la nueva URL a la lista si no existe
+        if (!CHANNELS[currentChannel]) CHANNELS[currentChannel] = [];
         if (!CHANNELS[currentChannel].includes(url)) {
           CHANNELS[currentChannel].push(url);
         }
@@ -501,18 +926,32 @@ function handleStreamError(isAccessError = false, is403Error = false) {
     // Si no hay más fuentes en la lista, buscamos nuevas
     showStatus('Buscando nueva fuente...');
     
-    // Para los canales de demostración, mostramos un mensaje más útil
+    // Para los canales de demostración, intentamos un proxy CORS como último recurso
     if (DEMO_STREAMS[currentChannel]) {
-      showStatus('Error al reproducir el stream de demostración. Puede haber restricciones por región o el proveedor ha bloqueado el acceso.');
+      const originalUrl = DEMO_STREAMS[currentChannel];
+      const proxiedUrl = tryCorsBypassProxy(originalUrl);
       
-      // Mostrar botón para intentar otro canal
-      showTryAnotherButton();
-      return;
+      if (proxiedUrl !== originalUrl) {
+        console.log('Intentando reproducir el canal de demostración a través de proxy CORS');
+        showStatus('Intentando reproducir a través de un proxy alternativo...');
+        
+        // Agregar la URL con proxy a la lista
+        if (!CHANNELS[currentChannel]) CHANNELS[currentChannel] = [];
+        CHANNELS[currentChannel].push(proxiedUrl);
+        sourceIndex = CHANNELS[currentChannel].length - 1;
+        attachStream(proxiedUrl);
+        return;
+      } else {
+        showStatus('Error al reproducir el stream de demostración. Puede haber restricciones por región o el proveedor ha bloqueado el acceso.');
+        showTryAnotherButton();
+        return;
+      }
     }
     
     fetchNewLink(currentChannel).then(url => {
       if (url) {
         console.log(`Nueva URL encontrada para ${currentChannel}: ${url.substring(0, 50)}...`);
+        if (!CHANNELS[currentChannel]) CHANNELS[currentChannel] = [];
         CHANNELS[currentChannel].push(url);
         sourceIndex = CHANNELS[currentChannel].length - 1;
         attachStream(url);
@@ -533,396 +972,62 @@ function handleStreamError(isAccessError = false, is403Error = false) {
   }
 }
 
-// Función para mostrar un botón que permita al usuario intentar otro canal fácilmente
-function showTryAnotherButton() {
-  let tryBtn = document.getElementById('try-another-btn');
-  if (!tryBtn) {
-    tryBtn = document.createElement('button');
-    tryBtn.id = 'try-another-btn';
-    tryBtn.textContent = '🔄 Probar otro canal';
-    tryBtn.style.padding = '10px 20px';
-    tryBtn.style.fontSize = '16px';
-    tryBtn.style.margin = '10px auto';
-    tryBtn.style.display = 'block';
-    tryBtn.style.backgroundColor = '#e74c3c';
-    tryBtn.style.color = 'white';
-    tryBtn.style.border = 'none';
-    tryBtn.style.borderRadius = '5px';
-    tryBtn.style.cursor = 'pointer';
-    
-    // Al hacer clic, volvemos a la lista de canales y resaltamos esa opción
-    tryBtn.addEventListener('click', () => {
-      const channelList = document.getElementById('channel-list');
-      const firstDemoChannel = Array.from(channelList.children).find(li => 
-        li.textContent === "Ejemplo 1" || li.textContent === "NASA TV" || li.textContent === "Red Bull TV"
+// Inicializar la aplicación cuando el DOM esté listo
+document.addEventListener('DOMContentLoaded', () => {
+  console.log('Inicializando aplicación...');
+  
+  // Verificar si la biblioteca dash.js está disponible
+  if (typeof dashjs === 'undefined') {
+    console.log('La biblioteca DASH.js no está cargada. Cargando desde CDN...');
+    const script = document.createElement('script');
+    script.src = 'https://cdn.dashjs.org/latest/dash.all.min.js';
+    script.onload = () => {
+      console.log('Biblioteca DASH.js cargada correctamente');
+    };
+    script.onerror = () => {
+      console.error('Error al cargar DASH.js');
+      showStatus('❌ No se pudo cargar la biblioteca DASH.js. Los canales que usan DASH podrían no funcionar correctamente.');
+    };
+    document.head.appendChild(script);
+  }
+  
+  // Configurar la lista de canales
+  setupChannelList();
+  
+  // Configurar el filtro de búsqueda
+  setupSearchFilter();
+  
+  // Mostrar mensaje de bienvenida
+  showWelcomeMessage();
+  
+  // Si hay URLs externas, cargarlas
+  if (PLAYLIST_URLS.length > 0) {
+    const promises = PLAYLIST_URLS.map(url => fetchTextViaProxy(url).then(parseM3U));
+    Promise.allSettled(promises).then(results => {
+      results.forEach(result => {
+        if (result.status === 'fulfilled') {
+          mergeExternalChannels(result.value);
+        }
+      });
+      setupChannelList(); // Actualizar la lista con los nuevos canales
+    });
+  }
+  
+  // Pre-cargar el primer canal, empezando por un canal de demostración para confiabilidad
+  setTimeout(() => {
+    const channelList = document.getElementById('channel-list');
+    if (channelList && channelList.children.length > 0) {
+      // Intentar encontrar un canal de demostración primero
+      const demoChannel = Array.from(channelList.children).find(li => 
+        li.textContent === "NASA TV" || li.textContent === "Red Bull TV" || li.textContent === "Ejemplo 1"
       );
       
-      if (firstDemoChannel) {
-        firstDemoChannel.click();
-      } else if (channelList.firstElementChild) {
+      if (demoChannel) {
+        demoChannel.click();
+      } else {
         // Si no hay un canal de demostración, simplemente seleccionamos el primero
         channelList.firstElementChild.click();
       }
-      
-      tryBtn.style.display = 'none';
-    });
-    
-    const playerContainer = document.querySelector('.video-player');
-    const statusMsg = document.getElementById('status-msg');
-    if (playerContainer && statusMsg) {
-      playerContainer.insertBefore(tryBtn, statusMsg.nextSibling);
-    } else if (playerContainer) {
-      playerContainer.appendChild(tryBtn);
     }
-  } else {
-    tryBtn.style.display = 'block';
-  }
-}
-
-// Mostrar mensaje para probar canales de demostración
-function showTryDemoChannelsMessage() {
-  showStatus('Los canales deportivos pueden tener restricciones. Prueba con los canales de demostración.');
-  
-  let demoMsg = document.getElementById('demo-channels-msg');
-  if (!demoMsg) {
-    demoMsg = document.createElement('div');
-    demoMsg.id = 'demo-channels-msg';
-    demoMsg.style.padding = '10px';
-    demoMsg.style.margin = '10px 0';
-    demoMsg.style.backgroundColor = 'rgba(41, 128, 185, 0.7)';
-    demoMsg.style.color = 'white';
-    demoMsg.style.borderRadius = '4px';
-    demoMsg.style.textAlign = 'center';
-    demoMsg.style.fontWeight = 'bold';
-    
-    demoMsg.innerHTML = `
-      <p>⚠️ Los canales deportivos pueden requerir acceso especial o estar bloqueados geográficamente</p>
-      <p>Te recomendamos probar los canales de demostración que funcionan correctamente:</p>
-      <div id="demo-channels-buttons" style="margin-top: 10px;"></div>
-    `;
-    
-    const playerContainer = document.querySelector('.video-player');
-    if (playerContainer) {
-      playerContainer.appendChild(demoMsg);
-      
-      // Agregar botones para cada canal de demostración
-      const demoButtons = document.getElementById('demo-channels-buttons');
-      Object.keys(DEMO_STREAMS).forEach(name => {
-        const btn = document.createElement('button');
-        btn.textContent = name;
-        btn.style.margin = '5px';
-        btn.style.padding = '8px 15px';
-        btn.style.backgroundColor = '#2ecc71';
-        btn.style.color = 'white';
-        btn.style.border = 'none';
-        btn.style.borderRadius = '4px';
-        btn.style.cursor = 'pointer';
-        
-        btn.addEventListener('click', () => {
-          const channelList = document.getElementById('channel-list');
-          const demoChannel = Array.from(channelList.children).find(li => li.textContent === name);
-          if (demoChannel) {
-            demoChannel.click();
-            // Ocultar el mensaje después de seleccionar
-            demoMsg.style.display = 'none';
-          }
-        });
-        
-        demoButtons.appendChild(btn);
-      });
-      
-      // Botón para cerrar el mensaje
-      const closeBtn = document.createElement('button');
-      closeBtn.textContent = '✕';
-      closeBtn.style.position = 'absolute';
-      closeBtn.style.right = '10px';
-      closeBtn.style.top = '10px';
-      closeBtn.style.background = 'transparent';
-      closeBtn.style.border = 'none';
-      closeBtn.style.color = 'white';
-      closeBtn.style.fontSize = '16px';
-      closeBtn.style.cursor = 'pointer';
-      closeBtn.onclick = () => demoMsg.style.display = 'none';
-      demoMsg.appendChild(closeBtn);
-    }
-  } else {
-    demoMsg.style.display = 'block';
-  }
-  
-  // También mostrar el botón para probar otro canal
-  showTryAnotherButton();
-}
-
-function loadChannel(name) {
-  // UI: actualizar logo, título y reset de badge
-  const logoEl = document.getElementById('channel-logo');
-  if (logoEl) logoEl.src = LOGOS[name] || 'https://via.placeholder.com/80x45?text=Logo';
-  const titleEl = document.getElementById('channel-title');
-  if (titleEl) titleEl.textContent = name;
-  const qBadge = document.getElementById('quality-badge');
-  if (qBadge) qBadge.textContent = '';
-
-  // Ocultar mensajes previos de otros canales
-  const demoMsg = document.getElementById('demo-channels-msg');
-  if (demoMsg) demoMsg.style.display = 'none';
-  
-  const tryBtn = document.getElementById('try-another-btn');
-  if (tryBtn) tryBtn.style.display = 'none';
-
-  currentChannel = name;
-  sourceIndex = 0;
-  const list = CHANNELS[name];
-  
-  // Mostrar un mensaje específico para canales deportivos
-  const isDeportesChannel = name.includes('DIRECTV') || 
-                          name.includes('ESPN') || 
-                          name.includes('Movistar') || 
-                          name.includes('Gol') ||
-                          name.includes('Liga 1');
-                          
-  if (isDeportesChannel && !isLocalhost) {
-    showStatus(`Cargando ${name}... Los canales deportivos pueden tener restricciones de acceso.`);
-  } else {
-    showStatus(`Cargando ${name}...`);
-  }
-  
-  // Si es un canal de demostración, mostramos un mensaje de confianza
-  if (DEMO_STREAMS[name]) {
-    showStatus(`Cargando ${name} (canal de demostración)...`);
-  }
-  
-  if (!list || list.length === 0) {
-    fetchNewLink(name).then(url => {
-      if (url) {
-        CHANNELS[name] = [url];
-        attachStream(url);
-      } else {
-        if (isDeportesChannel) {
-          showStatus(`No se encontró ninguna fuente disponible para ${name}. Los canales deportivos pueden tener restricciones.`);
-          showTryDemoChannelsMessage();
-        } else {
-          showStatus('No se encontró ninguna fuente disponible.');
-          showTryAnotherButton();
-        }
-      }
-    }).catch(err => {
-      console.error(`Error al cargar ${name}:`, err);
-      if (isDeportesChannel) {
-        showStatus(`Error al acceder a ${name}. Los canales deportivos pueden estar restringidos.`);
-        showTryDemoChannelsMessage();
-      } else {
-        showStatus(`Error al cargar el canal: ${err.message || 'Error desconocido'}`);
-        showTryAnotherButton();
-      }
-    });
-  } else {
-    attachStream(list[0]);
-  }
-}
-
-// Función para verificar si la API está accesible y funcionando
-async function checkApiStatus() {
-  try {
-    const res = await fetch(`${API_BASE_URL}/api/status`);
-    if (res.ok) {
-      const data = await res.json();
-      console.log('✅ API funcionando correctamente:', data);
-      return true;
-    } else {
-      console.error('❌ API respondió con error:', res.status);
-      return false;
-    }
-  } catch (e) {
-    console.error('❌ No se pudo conectar con la API:', e);
-    return false;
-  }
-}
-
-//--------------------------------------
-// Inicializar lista de canales y eventos
-//--------------------------------------
-(async function init() {
-  // Verificar conexión a la API
-  const apiStatus = await checkApiStatus();
-  if (!apiStatus && !isLocalhost) {
-    console.warn('⚠️ API no disponible, se cargarán solo canales de demostración');
-  }
-  
-  // 1) Cargar y fusionar todas las playlists externas antes de construir la UI
-  for (const url of PLAYLIST_URLS) {
-    try {
-      const m3uText = await fetchTextViaProxy(url);
-      const list = parseM3U(m3uText);
-      mergeExternalChannels(list);
-    } catch (e) {
-      console.warn('No se pudo cargar la playlist', url, e);
-    }
-  }
-
-  // Añadir streams de demostración que funcionan en producción
-  if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-    console.log('Añadiendo canales de demostración para entorno de producción');
-    
-    // Crear un nuevo objeto CHANNELS con los canales de demo primero
-    const demoChannels = {};
-    
-    // Añadir primero los canales de demostración
-    Object.keys(DEMO_STREAMS).forEach(name => {
-      demoChannels[name] = [DEMO_STREAMS[name]];
-    });
-    
-    // Luego añadir los canales regulares
-    Object.keys(CHANNELS).forEach(name => {
-      demoChannels[name] = CHANNELS[name];
-    });
-    
-    // Reemplazar el objeto CHANNELS
-    Object.assign(CHANNELS, demoChannels);
-  }
-
-  const listContainer = document.getElementById('channel-list');
-  Object.keys(CHANNELS).forEach(name => {
-    const li = document.createElement('li');
-    li.textContent = name;
-    li.addEventListener('click', () => {
-      Array.from(listContainer.children).forEach(elem => elem.classList.remove('active'));
-      li.classList.add('active');
-      loadChannel(name);
-    });
-    listContainer.appendChild(li);
-  });
-  // Auto-seleccionar primer canal
-  if (listContainer.firstElementChild) listContainer.firstElementChild.click();
-
-  // Mostrar un mensaje informativo en producción
-  if (!isLocalhost) {
-    setTimeout(() => {
-      const infoMsg = document.createElement('div');
-      infoMsg.style.padding = '10px';
-      infoMsg.style.margin = '15px 0';
-      infoMsg.style.backgroundColor = 'rgba(52, 152, 219, 0.7)';
-      infoMsg.style.color = 'white';
-      infoMsg.style.borderRadius = '4px';
-      infoMsg.style.textAlign = 'center';
-      infoMsg.innerHTML = `
-        <p><strong>👋 ¡Bienvenido a Depechito TV!</strong></p>
-        <p>Para una mejor experiencia, inicia con los canales "Ejemplo 1", "NASA TV" o "Red Bull TV" que funcionan correctamente.</p>
-        <p>⚠️ <strong>Importante:</strong> Los canales deportivos pueden estar bloqueados por los proveedores. Si ves errores 403, es porque el proveedor deportivo está bloqueando activamente el acceso.</p>
-        <p>En desarrollo local, más canales podrían funcionar correctamente.</p>
-      `;
-      
-      const playerContainer = document.querySelector('.video-player');
-      if (playerContainer) {
-        playerContainer.appendChild(infoMsg);
-        
-        // Botón para cerrar el mensaje
-        const closeBtn = document.createElement('button');
-        closeBtn.textContent = '✕';
-        closeBtn.style.position = 'absolute';
-        closeBtn.style.right = '10px';
-        closeBtn.style.top = '10px';
-        closeBtn.style.background = 'transparent';
-        closeBtn.style.border = 'none';
-        closeBtn.style.color = 'white';
-        closeBtn.style.fontSize = '16px';
-        closeBtn.style.cursor = 'pointer';
-        closeBtn.onclick = () => infoMsg.style.display = 'none';
-        infoMsg.appendChild(closeBtn);
-      }
-    }, 2000);
-  }
-
-  // Buscador
-  const searchInput = document.getElementById('search');
-  if (searchInput) {
-    searchInput.addEventListener('input', (e) => {
-      const term = e.target.value.toLowerCase();
-      Array.from(listContainer.children).forEach(li => {
-        li.style.display = li.textContent.toLowerCase().includes(term) ? '' : 'none';
-      });
-    });
-  }
-})();
-
-// Lista de dominios que requieren acceso a través de proxy debido a restricciones
-const DOMAINS_REQUIRING_PROXY = [
-  'fubohd.com',
-  'televisionlibre.net',
-  'pelotalibre',
-  'directv.com'
-];
-
-// Función para determinar si una URL necesita ser accedida a través del proxy
-function needsProxyAccess(url) {
-  return DOMAINS_REQUIRING_PROXY.some(domain => url.includes(domain));
-}
-
-// Función para mostrar un mensaje específico cuando un canal deportivo está bloqueado
-function showBlockedStreamMessage(channelName) {
-  let blockedMsg = document.getElementById('blocked-stream-msg');
-  if (!blockedMsg) {
-    blockedMsg = document.createElement('div');
-    blockedMsg.id = 'blocked-stream-msg';
-    blockedMsg.style.padding = '10px';
-    blockedMsg.style.margin = '10px 0';
-    blockedMsg.style.backgroundColor = 'rgba(231, 76, 60, 0.8)';
-    blockedMsg.style.color = 'white';
-    blockedMsg.style.borderRadius = '4px';
-    blockedMsg.style.textAlign = 'center';
-    blockedMsg.style.fontWeight = 'bold';
-    
-    blockedMsg.innerHTML = `
-      <p>⛔ El canal ${channelName} está bloqueando la reproducción directa</p>
-      <p>Los proveedores de canales deportivos usan protección contra reproducción en sitios externos.</p>
-      <p>Te recomendamos intentar con los canales de demostración mientras mejoramos el acceso:</p>
-      <div id="blocked-demo-buttons" style="margin-top: 10px;"></div>
-    `;
-    
-    const playerContainer = document.querySelector('.video-player');
-    if (playerContainer) {
-      playerContainer.appendChild(blockedMsg);
-      
-      // Agregar botones para cada canal de demostración
-      const demoButtons = document.getElementById('blocked-demo-buttons');
-      Object.keys(DEMO_STREAMS).forEach(name => {
-        const btn = document.createElement('button');
-        btn.textContent = name;
-        btn.style.margin = '5px';
-        btn.style.padding = '8px 15px';
-        btn.style.backgroundColor = '#2ecc71';
-        btn.style.color = 'white';
-        btn.style.border = 'none';
-        btn.style.borderRadius = '4px';
-        btn.style.cursor = 'pointer';
-        
-        btn.addEventListener('click', () => {
-          const channelList = document.getElementById('channel-list');
-          const demoChannel = Array.from(channelList.children).find(li => li.textContent === name);
-          if (demoChannel) {
-            demoChannel.click();
-            // Ocultar el mensaje después de seleccionar
-            blockedMsg.style.display = 'none';
-          }
-        });
-        
-        demoButtons.appendChild(btn);
-      });
-      
-      // Botón para cerrar el mensaje
-      const closeBtn = document.createElement('button');
-      closeBtn.textContent = '✕';
-      closeBtn.style.position = 'absolute';
-      closeBtn.style.right = '10px';
-      closeBtn.style.top = '10px';
-      closeBtn.style.background = 'transparent';
-      closeBtn.style.border = 'none';
-      closeBtn.style.color = 'white';
-      closeBtn.style.fontSize = '16px';
-      closeBtn.style.cursor = 'pointer';
-      closeBtn.onclick = () => blockedMsg.style.display = 'none';
-      blockedMsg.appendChild(closeBtn);
-    }
-  } else {
-    blockedMsg.style.display = 'block';
-  }
-}
+  }, 500);
+});
