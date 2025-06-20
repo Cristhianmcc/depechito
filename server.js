@@ -93,12 +93,25 @@ function migrateTokensFromJson() {
   }
 }
 
-// URL directa de DirecTV Sports (actualizada manualmente cuando sea necesario)
+// URL directa de canales deportivos (actualizada manualmente el 20 de junio de 2025)
 const DSPORTS_DIRECT_LINKS = {
-  // Token actualizado para DirecTV Sports HD (con token de prueba)
-  dsports: "https://dtv-latam-jbc.akamaized.net/dash/live/2028183/dtv-latam-jbc/master.mpd?hdnts=exp=1750395976~acl=/*~id=978c878f-c352-49d9-9ab4-5fcdfad3012f~data=hdntl~hmac=46c73f02b17e365af62b7d63cecd880a6242e065",
-  dsports2: "https://ag9wzq.fubohd.com:443/dsports2/mono.m3u8?token=46c73f02b17e365af62b7d63cecd880a6242e065-90-1750395976-1750377976",
-  dsportsplus: "https://eWVz.fubohd.com:443/dsportsplus/mono.m3u8?token=46c73f02b17e365af62b7d63cecd880a6242e065-90-1750395976-1750377976"
+  // DirecTV Sports
+  dsports: "https://a2vlca.fubohd.com:443/dsports/mono.m3u8?token=c3ed9da19abcab526c1b394236931a6738274b96-f0-1750468356-1750450356",
+  dsports2: "https://ym9yzq.fubohd.com:443/dsports2/mono.m3u8?token=f9c0980847c7ab6f43ce639d82424a0017538613-b3-1750468614-1750450614",
+  dsportsplus: "https://c2f2zq.fubohd.com:443/dsportsplus/mono.m3u8?token=b0c51a090ff1c9b0364a6d94216ab24005dac2b9-8e-1750468639-1750450639",
+  
+  // ESPN
+  espn: "https://tyg2mnl9.fubohd.com:443/espn/mono.m3u8?token=5ebd3b6fd9994189b9c74e50816b35623911e218-9d-1750468672-1750450672",
+  espn2: "https://am91cm5leQ.fubohd.com:443/espn2/mono.m3u8?token=afe252fc2e722ba63efeff9c60a78b19914b8e2a-f7-1750468702-1750450702",
+  espn3: "https://dglvz29s.fubohd.com:443/espn3/mono.m3u8?token=bc4e7576f39a85499cfa9867b73be69197568809-96-1750468868-1750450868",
+  espn4: "https://aGl2ZQ.fubohd.com:443/espn4/mono.m3u8?token=9cbcc2d151fb98265f63368f047faf87db357369-99-1750468896-1750450896",
+  espn5: "https://bGFuZQ.fubohd.com:443/espn5/mono.m3u8?token=4098b263d430e0aee15a8bd9625d1a852d1ca58f-b0-1750468950-1750450950",
+  espn6: "https://bmf0aw9u.fubohd.com:443/espn6/mono.m3u8?token=1ce43655ea57155adbb5cd2e248babbe742e28ed-90-1750468987-1750450987",
+  espn7: "https://aGl2ZQ.fubohd.com:443/espn7/mono.m3u8?token=770f517d826eda0e16e1377dd736e728fc92e157-53-1750469035-1750451035",
+  espnpremium: "https://agvyby.fubohd.com:443/espnpremium/mono.m3u8?token=cd5c813486b003cd022b32d4f4676107f68ffff9-c7-1750469107-1750451107",
+  
+  // Otros canales
+  liga1max: "https://bgvnzw5k.fubohd.com:443/liga1max/mono.m3u8?token=c2e03f425696468ca1e3b9230f1f1ee18c72240c-d3-1750469065-1750451065"
 };
 
 // Servir archivos estáticos desde el directorio actual

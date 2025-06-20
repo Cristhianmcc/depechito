@@ -661,18 +661,18 @@ function estimateTokenExpiration(token) {
 
 // Constantes para la URL base de los diferentes canales
 const CHANNEL_BASE_URLS = {
-  "Liga 1 Max": "https://bGFuZQ.fubohd.com/liga1max/mono.m3u8",
-  "DIRECTV Sports HD": "https://tyg2mnl9.fubohd.com/dsports/mono.m3u8",
-  "DIRECTV Sports 2 HD": "https://anvtcax.fubohd.com/dsports2/mono.m3u8",
-  "DirecTV Plus": "https://eWVz.fubohd.com/dsportsplus/mono.m3u8",
-  "ESPN": "https://am91cm5leQ.fubohd.com/espn/mono.m3u8",
-  "ESPN2": "https://rm8zcvk3.fubohd.com/espn2/mono.m3u8",
-  "ESPN3": "https://eWVz.fubohd.com/espn3/mono.m3u8",
+  "Liga 1 Max": "https://bgvnzw5k.fubohd.com/liga1max/mono.m3u8",
+  "DIRECTV Sports HD": "https://a2vlca.fubohd.com/dsports/mono.m3u8",
+  "DIRECTV Sports 2 HD": "https://ym9yzq.fubohd.com/dsports2/mono.m3u8",
+  "DirecTV Plus": "https://c2f2zq.fubohd.com/dsportsplus/mono.m3u8",
+  "ESPN": "https://tyg2mnl9.fubohd.com/espn/mono.m3u8",
+  "ESPN2": "https://am91cm5leQ.fubohd.com/espn2/mono.m3u8",
+  "ESPN3": "https://dglvz29s.fubohd.com/espn3/mono.m3u8",
   "ESPN4": "https://aGl2ZQ.fubohd.com/espn4/mono.m3u8",
-  "ESPN5": "https://qzv4jmsc.fubohd.com/espn5/mono.m3u8",
-  "ESPN6": "https://c2nvdxq.fubohd.com/espn6/mono.m3u8",
-  "ESPN7": "https://c2nvdxq.fubohd.com/espn7/mono.m3u8",
-  "ESPN Premium": "https://bmf0aw9u.fubohd.com/espnpremium/mono.m3u8"
+  "ESPN5": "https://bGFuZQ.fubohd.com/espn5/mono.m3u8",
+  "ESPN6": "https://bmf0aw9u.fubohd.com/espn6/mono.m3u8",
+  "ESPN7": "https://aGl2ZQ.fubohd.com/espn7/mono.m3u8",
+  "ESPN Premium": "https://agvyby.fubohd.com/espnpremium/mono.m3u8"
 };
 
 // scripts.js mejorado
@@ -693,23 +693,23 @@ const DEMO_STREAMS = {
 };
 
 // Versión de tokens - incrementar cuando se actualicen tokens importantes
-const TOKENS_VERSION = 3; // Actualizado para todos los canales con nuevos tokens
+const TOKENS_VERSION = 5; // Actualizado el 20 de junio de 2025 con tokens más recientes
 
 // Tokens conocidos para canales específicos (se actualizan manualmente)
 const KNOWN_TOKENS = {
-  "Liga 1 Max": "d38e5213144afeaf29de7d39109cd37162b57c3b-65-1750446275-1750428275",
-  "DIRECTV Sports HD": "61cfa088b097200767adf86d505b4b9378c0cbc2-5-1750443916-1750425916",
-  "DIRECTV Sports 2 HD": "ec806f16b0201dfd2b8ea8d65e43b258c9eb5eaa-c3-1750445977-1750427977",
-  "DirecTV Plus": "6be5b52b874cc027af845465a1066be6be940865-d7-1750446014-1750428014",
+  "Liga 1 Max": "c2e03f425696468ca1e3b9230f1f1ee18c72240c-d3-1750469065-1750451065",
+  "DIRECTV Sports HD": "c3ed9da19abcab526c1b394236931a6738274b96-f0-1750468356-1750450356",
+  "DIRECTV Sports 2 HD": "f9c0980847c7ab6f43ce639d82424a0017538613-b3-1750468614-1750450614",
+  "DirecTV Plus": "b0c51a090ff1c9b0364a6d94216ab24005dac2b9-8e-1750468639-1750450639",
   
-  "ESPN": "9b9586272b50bb1ac4c6be0278fdfdbe3994dccf-de-1750446061-1750428061",
-  "ESPN2": "85cdc5ecd8f998f9013d805e252604e795366a5c-9f-1750446099-1750428099",
-  "ESPN3": "66342a841c5d31582050612be72f4de456f29844-fd-1750446130-1750428130",
-  "ESPN4": "657793ab65d0b60703472252f2d5c41d32d18a01-49-1750446153-1750428153",
-  "ESPN5": "8b1eb3e50f60713d7d4a20897ae6479006423158-eb-1750446190-1750428190",
-  "ESPN6": "bbe7a79233f58724968e3155c887c324cb8f08a1-a8-1750446215-1750428215",
-  "ESPN7": "82c2692613f5260ab3a53c2a1a73ab3930b736bc-18-1750446248-1750428248",
-  "ESPN Premium": "cf9d5acd892aef2408bed172229b8ad12b1e3784-85-1750446345-1750428345"
+  "ESPN": "5ebd3b6fd9994189b9c74e50816b35623911e218-9d-1750468672-1750450672",
+  "ESPN2": "afe252fc2e722ba63efeff9c60a78b19914b8e2a-f7-1750468702-1750450702",
+  "ESPN3": "bc4e7576f39a85499cfa9867b73be69197568809-96-1750468868-1750450868",
+  "ESPN4": "9cbcc2d151fb98265f63368f047faf87db357369-99-1750468896-1750450896",
+  "ESPN5": "4098b263d430e0aee15a8bd9625d1a852d1ca58f-b0-1750468950-1750450950",
+  "ESPN6": "1ce43655ea57155adbb5cd2e248babbe742e28ed-90-1750468987-1750450987",
+  "ESPN7": "770f517d826eda0e16e1377dd736e728fc92e157-53-1750469035-1750451035",
+  "ESPN Premium": "cd5c813486b003cd022b32d4f4676107f68ffff9-c7-1750469107-1750451107"
   // Movistar Deportes y Gol Perú serán añadidos cuando estén disponibles
 };
 
@@ -842,30 +842,30 @@ async function fetchNewLink(channelName) {
     
     // URLs de respaldo específicas según el canal por si no está en CHANNEL_BASE_URLS
     if (lower.includes('liga 1 max')) {
-      return `https://bGFuZQ.fubohd.com/liga1max/mono.m3u8?token=${token}`;
+      return `https://bgvnzw5k.fubohd.com/liga1max/mono.m3u8?token=${token}`;
     } else if (lower.includes('directv sports 2') || lower.includes('dsports2')) {
-      return `https://anvtcax.fubohd.com/dsports2/mono.m3u8?token=${token}`;
+      return `https://ym9yzq.fubohd.com/dsports2/mono.m3u8?token=${token}`;
     } else if (lower.includes('directv sports') && !lower.includes('2') && !lower.includes('plus')) {
-      return `https://tyg2mnl9.fubohd.com/dsports/mono.m3u8?token=${token}`;
+      return `https://a2vlca.fubohd.com/dsports/mono.m3u8?token=${token}`;
     } else if (lower.includes('directv plus') || lower.includes('dsports plus')) {
-      return `https://eWVz.fubohd.com/dsportsplus/mono.m3u8?token=${token}`;
+      return `https://c2f2zq.fubohd.com/dsportsplus/mono.m3u8?token=${token}`;
     } else if (lower.includes('espn premium')) {
-      return `https://bmf0aw9u.fubohd.com/espnpremium/mono.m3u8?token=${token}`;
+      return `https://agvyby.fubohd.com/espnpremium/mono.m3u8?token=${token}`;
     } else if (lower.includes('espn3') || lower.includes('espn 3')) {
-      return `https://eWVz.fubohd.com/espn3/mono.m3u8?token=${token}`;
+      return `https://dglvz29s.fubohd.com/espn3/mono.m3u8?token=${token}`;
     } else if (lower.includes('espn2') || lower.includes('espn 2')) {
-      return `https://rm8zcvk3.fubohd.com/espn2/mono.m3u8?token=${token}`;
+      return `https://am91cm5leQ.fubohd.com/espn2/mono.m3u8?token=${token}`;
     } else if (lower.includes('espn4') || lower.includes('espn 4')) {
       return `https://aGl2ZQ.fubohd.com/espn4/mono.m3u8?token=${token}`;
     } else if (lower.includes('espn5') || lower.includes('espn 5')) {
-      return `https://qzv4jmsc.fubohd.com/espn5/mono.m3u8?token=${token}`;
+      return `https://bGFuZQ.fubohd.com/espn5/mono.m3u8?token=${token}`;
     } else if (lower.includes('espn6') || lower.includes('espn 6')) {
-      return `https://c2nvdxq.fubohd.com/espn6/mono.m3u8?token=${token}`;
+      return `https://bmf0aw9u.fubohd.com/espn6/mono.m3u8?token=${token}`;
     } else if (lower.includes('espn7') || lower.includes('espn 7')) {
-      return `https://c2nvdxq.fubohd.com/espn7/mono.m3u8?token=${token}`;
+      return `https://aGl2ZQ.fubohd.com/espn7/mono.m3u8?token=${token}`;
     } else if (lower.includes('espn') && !lower.includes('premium') && !lower.includes('2') && !lower.includes('3') && 
                !lower.includes('4') && !lower.includes('5') && !lower.includes('6') && !lower.includes('7')) {
-      return `https://am91cm5leQ.fubohd.com/espn/mono.m3u8?token=${token}`;
+      return `https://tyg2mnl9.fubohd.com/espn/mono.m3u8?token=${token}`;
     }
   }
   
@@ -893,7 +893,7 @@ async function fetchNewLink(channelName) {
       const dsports2Token = KNOWN_TOKENS["DIRECTV Sports 2 HD"];
       // Guardar token en caché
       cacheToken("DIRECTV Sports 2 HD", dsports2Token);
-      return `https://dglvz29s.fubohd.com/dsports2/mono.m3u8?token=${dsports2Token}`;
+      return `https://ym9yzq.fubohd.com/dsports2/mono.m3u8?token=${dsports2Token}`;
     }
     try {
       const res = await fetch(`${API_BASE_URL}/api/stream/dsports2`);
@@ -915,7 +915,7 @@ async function fetchNewLink(channelName) {
         const espnPremiumToken = KNOWN_TOKENS["ESPN Premium"];
         // Guardar token en caché
         cacheToken("ESPN Premium", espnPremiumToken);
-        return `https://a2lja3m.fubohd.com/espnpremium/mono.m3u8?token=${espnPremiumToken}`;
+        return `https://agvyby.fubohd.com/espnpremium/mono.m3u8?token=${espnPremiumToken}`;
       }
       try {
         const res = await fetch(`${API_BASE_URL}/api/stream/espnpremium`);
@@ -937,7 +937,7 @@ async function fetchNewLink(channelName) {
         const espn4Token = KNOWN_TOKENS["ESPN4"];
         // Guardar token en caché
         cacheToken("ESPN4", espn4Token);
-        return `https://dglvz29s.fubohd.com/espn4/mono.m3u8?token=${espn4Token}`;
+        return `https://aGl2ZQ.fubohd.com/espn4/mono.m3u8?token=${espn4Token}`;
       }
       try {
         const res = await fetch(`${API_BASE_URL}/api/stream/espn4`);
@@ -960,7 +960,7 @@ async function fetchNewLink(channelName) {
         const espn5Token = KNOWN_TOKENS["ESPN5"];
         // Guardar token en caché
         cacheToken("ESPN5", espn5Token);
-        return `https://qzv4jmsc.fubohd.com/espn5/mono.m3u8?token=${espn5Token}`;
+        return `https://bGFuZQ.fubohd.com/espn5/mono.m3u8?token=${espn5Token}`;
       }
       try {
         const res = await fetch(`${API_BASE_URL}/api/stream/espn5`);
@@ -983,7 +983,7 @@ async function fetchNewLink(channelName) {
         const espn6Token = KNOWN_TOKENS["ESPN6"];
         // Guardar token en caché
         cacheToken("ESPN6", espn6Token);
-        return `https://agvyby.fubohd.com/espn6/mono.m3u8?token=${espn6Token}`;
+        return `https://bmf0aw9u.fubohd.com/espn6/mono.m3u8?token=${espn6Token}`;
       }
       try {
         const res = await fetch(`${API_BASE_URL}/api/stream/espn6`);
@@ -1006,7 +1006,7 @@ async function fetchNewLink(channelName) {
         const espn7Token = KNOWN_TOKENS["ESPN7"];
         // Guardar token en caché
         cacheToken("ESPN7", espn7Token);
-        return `https://c2f2zq.fubohd.com/espn7/mono.m3u8?token=${espn7Token}`;
+        return `https://aGl2ZQ.fubohd.com/espn7/mono.m3u8?token=${espn7Token}`;
       }
       try {
         const res = await fetch(`${API_BASE_URL}/api/stream/espn7`);
@@ -1029,7 +1029,7 @@ async function fetchNewLink(channelName) {
         const espn3Token = KNOWN_TOKENS["ESPN3"];
         // Guardar token en caché
         cacheToken("ESPN3", espn3Token);
-        return `https://am91cm5leQ.fubohd.com/espn3/mono.m3u8?token=${espn3Token}`;
+        return `https://dglvz29s.fubohd.com/espn3/mono.m3u8?token=${espn3Token}`;
       }
       try {
         const res = await fetch(`${API_BASE_URL}/api/stream/espn3`);
@@ -1052,7 +1052,7 @@ async function fetchNewLink(channelName) {
         const espn2Token = KNOWN_TOKENS["ESPN2"];
         // Guardar token en caché
         cacheToken("ESPN2", espn2Token);
-        return `https://bGFuZQ.fubohd.com/espn2/mono.m3u8?token=${espn2Token}`;
+        return `https://am91cm5leQ.fubohd.com/espn2/mono.m3u8?token=${espn2Token}`;
       }
       try {
         const res = await fetch(`${API_BASE_URL}/api/stream/espn2`);
@@ -1081,7 +1081,7 @@ async function fetchNewLink(channelName) {
         const espnToken = KNOWN_TOKENS["ESPN"];
         // Guardar token en caché
         cacheToken("ESPN", espnToken);
-        return `https://c2f2zq.fubohd.com/espn/mono.m3u8?token=${espnToken}`;
+        return `https://tyg2mnl9.fubohd.com/espn/mono.m3u8?token=${espnToken}`;
       }
       try {
         const res = await fetch(`${API_BASE_URL}/api/stream/espn`);
@@ -1152,7 +1152,7 @@ async function fetchNewLink(channelName) {
         const liga1Token = KNOWN_TOKENS["Liga 1 Max"];
         // Guardar token en caché
         cacheToken("Liga 1 Max", liga1Token);
-        return `https://dglvz29s.fubohd.com/liga1max/mono.m3u8?token=${liga1Token}`;
+        return `https://bgvnzw5k.fubohd.com/liga1max/mono.m3u8?token=${liga1Token}`;
       }
       try {
         const res = await fetch(`${API_BASE_URL}/api/stream/liga1max`);
