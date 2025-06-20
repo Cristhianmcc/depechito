@@ -13,6 +13,167 @@ function removeDashWarningMessage() {
   });
 }
 
+// Funciones de UI para mensajes y notificaciones
+// Función para mostrar un mensaje de bienvenida
+function showWelcomeMessage() {
+  // Verificar si existe el elemento para el mensaje de bienvenida
+  let welcomeMsg = document.getElementById('welcome-msg');
+  if (!welcomeMsg) {
+    welcomeMsg = document.createElement('div');
+    welcomeMsg.id = 'welcome-msg';
+    welcomeMsg.className = 'welcome-message';
+    welcomeMsg.innerHTML = `
+      <h3>¡Bienvenido al Reproductor de Canales!</h3>
+      <p>Selecciona un canal desde la lista para comenzar a ver.</p>
+      <p>Recomendamos empezar con los canales de <span class="highlight">NASA TV Public</span> o <span class="highlight">Red Bull TV</span> que suelen funcionar mejor.</p>
+    `;
+    
+    // Añadir el mensaje al contenedor del reproductor
+    const playerContainer = document.querySelector('.video-player');
+    if (playerContainer) {
+      playerContainer.appendChild(welcomeMsg);
+    }
+  }
+  
+  welcomeMsg.style.display = 'block';
+}
+
+// Función para mostrar mensaje de prueba de canales de demostración
+function showTryDemoChannelsMessage() {
+  // Verificar si existe el elemento para el mensaje
+  let demoMsg = document.getElementById('try-demo-msg');
+  if (!demoMsg) {
+    demoMsg = document.createElement('div');
+    demoMsg.id = 'try-demo-msg';
+    demoMsg.className = 'demo-message';
+    demoMsg.innerHTML = `
+      <h3>Canal no disponible</h3>
+      <p>Este canal no está disponible en este momento o requiere permisos especiales.</p>
+      <p>Prueba con los canales de demostración como <span class="highlight">NASA TV Public</span> o <span class="highlight">Red Bull TV</span>.</p>
+      <button id="try-demo-btn" class="action-button">Ver canal de demostración</button>
+    `;
+    
+    // Añadir el mensaje al contenedor del reproductor
+    const playerContainer = document.querySelector('.video-player');
+    if (playerContainer) {
+      playerContainer.appendChild(demoMsg);
+    }
+    
+    // Agregar evento al botón
+    setTimeout(() => {
+      const tryDemoBtn = document.getElementById('try-demo-btn');
+      if (tryDemoBtn) {
+        tryDemoBtn.addEventListener('click', () => {
+          const demoChannels = document.querySelectorAll('#channel-list li.demo-channel');
+          if (demoChannels.length > 0) {
+            demoChannels[0].click();
+          }
+        });
+      }
+    }, 100);
+  }
+  
+  demoMsg.style.display = 'block';
+}
+
+// Función para mostrar un mensaje específico para streams bloqueados
+function showBlockedStreamMessage(channelName) {
+  // Verificar si existe el elemento para el mensaje
+  let blockedMsg = document.getElementById('blocked-stream-msg');
+  if (!blockedMsg) {
+    blockedMsg = document.createElement('div');
+    blockedMsg.id = 'blocked-stream-msg';
+    blockedMsg.className = 'blocked-message';
+    blockedMsg.innerHTML = `
+      <h3>Canal con restricciones</h3>
+      <p>El stream para <strong>${channelName}</strong> no está disponible debido a una de estas razones:</p>
+      <ul>
+        <li>El servidor bloquea el acceso desde nuestra página</li>
+        <li>El token de acceso ha expirado</li>
+        <li>Hay restricciones geográficas para este contenido</li>
+      </ul>
+      <p>Prueba con un canal de demostración mientras actualizamos los enlaces.</p>
+      <button id="try-demo-blocked-btn" class="action-button">Ver canal de demostración</button>
+    `;
+    
+    // Añadir el mensaje al contenedor del reproductor
+    const playerContainer = document.querySelector('.video-player');
+    if (playerContainer) {
+      playerContainer.appendChild(blockedMsg);
+    }
+    
+    // Agregar evento al botón
+    setTimeout(() => {
+      const tryDemoBtn = document.getElementById('try-demo-blocked-btn');
+      if (tryDemoBtn) {
+        tryDemoBtn.addEventListener('click', () => {
+          const demoChannels = document.querySelectorAll('#channel-list li.demo-channel');
+          if (demoChannels.length > 0) {
+            demoChannels[0].click();
+          }
+        });
+      }
+    }, 100);
+  } else {
+    // Actualizar el nombre del canal en el mensaje existente
+    const channelNameEl = blockedMsg.querySelector('strong');
+    if (channelNameEl) {
+      channelNameEl.textContent = channelName;
+    }
+  }
+  
+  blockedMsg.style.display = 'block';
+}
+
+// Función para mostrar un botón de "Intentar otro canal"
+function showTryAnotherButton() {
+  const playerContainer = document.querySelector('.video-player');
+  if (!playerContainer) return;
+  
+  // Eliminar botones existentes
+  const existingBtn = document.getElementById('try-another-btn');
+  if (existingBtn) existingBtn.remove();
+  
+  const tryBtn = document.createElement('button');
+  tryBtn.id = 'try-another-btn';
+  tryBtn.className = 'action-button try-another';
+  tryBtn.textContent = 'Intentar con otro canal';
+  tryBtn.addEventListener('click', () => {
+    const demoChannels = document.querySelectorAll('#channel-list li.demo-channel');
+    if (demoChannels.length > 0) {
+      demoChannels[0].click();
+    }
+  });
+  
+  playerContainer.appendChild(tryBtn);
+}
+
+// Función para añadir un botón de play cuando autoplay está bloqueado
+function addPlayButton() {
+  const playerContainer = document.querySelector('.video-player');
+  if (!playerContainer) return;
+  
+  // Eliminar botones existentes
+  const existingBtn = document.getElementById('manual-play-btn');
+  if (existingBtn) existingBtn.remove();
+  
+  const playBtn = document.createElement('button');
+  playBtn.id = 'manual-play-btn';
+  playBtn.className = 'action-button play-button';
+  playBtn.innerHTML = '▶️ Reproducir';
+  playBtn.addEventListener('click', () => {
+    const video = document.getElementById('player');
+    if (video) {
+      video.play().catch(err => {
+        console.error('Error al intentar reproducir manualmente:', err);
+      });
+      playBtn.style.display = 'none';
+    }
+  });
+  
+  playerContainer.appendChild(playBtn);
+}
+
 // scripts.js mejorado
 // -----------------------------
 // Configuración de canales: llena manualmente arrays o déjalos vacíos y se intentará
@@ -46,19 +207,19 @@ console.log('Ambiente detectado:', isLocalhost ? 'Desarrollo local' : 'Producci�
 console.log('API_BASE_URL:', API_BASE_URL);
 console.log('====================================');
 
-// Mapas de logos (se pueden sustituir por archivos locales en /logos)
+// Mapas de logos (URLs actualizadas para evitar errores 404)
 const LOGOS = {
-  "DIRECTV Sports HD": "https://raw.githubusercontent.com/iptv-org/iptv/master/logos/d/DIRECTVSportsHD.png",
-  "DIRECTV Sports 2 HD": "https://raw.githubusercontent.com/iptv-org/iptv/master/logos/d/DIRECTVSports2HD.png",
-  "Movistar Deportes": "https://raw.githubusercontent.com/iptv-org/iptv/master/logos/m/MovistarDeportes.png",
-  "ESPN Premium": "https://raw.githubusercontent.com/iptv-org/iptv/master/logos/e/ESPNPremium.png",
-  "ESPN": "https://raw.githubusercontent.com/iptv-org/iptv/master/logos/e/ESPN.png",
-  "ESPN2": "https://raw.githubusercontent.com/iptv-org/iptv/master/logos/e/ESPN2.png",
-  "ESPN3": "https://raw.githubusercontent.com/iptv-org/iptv/master/logos/e/ESPN3.png",
-  "ESPN4": "https://raw.githubusercontent.com/iptv-org/iptv/master/logos/e/ESPN4.png",
-  "Liga 1 Max": "https://raw.githubusercontent.com/iptv-org/iptv/master/logos/l/Liga1Max.png",
-  "Gol Perú": "https://raw.githubusercontent.com/iptv-org/iptv/master/logos/g/GolPeru.png",
-  "DirecTV Plus": "https://raw.githubusercontent.com/iptv-org/iptv/master/logos/d/DIRECTVPlus.png"
+  "DIRECTV Sports HD": "https://i.ibb.co/vXbTGnW/DIRECTV-Sports-HD.png",
+  "DIRECTV Sports 2 HD": "https://i.ibb.co/pX3zv1J/DIRECTV-Sports-2-HD.png", 
+  "Movistar Deportes": "https://i.ibb.co/d6gHyyH/MovistarDeportes.png",
+  "ESPN Premium": "https://i.ibb.co/C77tcRP/ESPNPremium.png",
+  "ESPN": "https://i.ibb.co/ZKpddZQ/ESPN.png",
+  "ESPN2": "https://i.ibb.co/wpLwTXr/ESPN2.png",
+  "ESPN3": "https://i.ibb.co/L5w0Rf9/ESPN3.png",
+  "ESPN4": "https://i.ibb.co/C6YBkNB/ESPN4.png",
+  "Liga 1 Max": "https://i.ibb.co/xJ37DbW/Liga1Max.png",
+  "Gol Perú": "https://i.ibb.co/FnhznGr/GolPeru.png",
+  "DirecTV Plus": "https://i.ibb.co/Z1h95KP/DIRECTVPlus.png"
 };
 
 const CHANNELS = {
@@ -544,6 +705,27 @@ function attachStream(url) {
   if (!hlsSupport.hlsJs && !hlsSupport.native) {
     showStatus('⚠️ Tu navegador no soporta la reproducción de HLS. Prueba con Chrome, Safari o Firefox actualizado.');
     console.error('Este navegador no es compatible con HLS');
+    
+    // Mostrar un mensaje más claro al usuario
+    let hlsErrorMsg = document.getElementById('hls-error-msg');
+    if (!hlsErrorMsg) {
+      hlsErrorMsg = document.createElement('div');
+      hlsErrorMsg.id = 'hls-error-msg';
+      hlsErrorMsg.className = 'error-message';
+      hlsErrorMsg.innerHTML = `
+        <h3>Tu navegador no soporta HLS</h3>
+        <p>Este reproductor requiere un navegador compatible con el formato HLS (HTTP Live Streaming).</p>
+        <p>Te recomendamos usar Chrome, Safari o Firefox actualizado.</p>
+        <p>También puedes probar con un canal en formato DASH como DirecTV Sports.</p>
+      `;
+      
+      const playerContainer = document.querySelector('.video-player');
+      if (playerContainer) {
+        playerContainer.appendChild(hlsErrorMsg);
+      }
+    }
+    hlsErrorMsg.style.display = 'block';
+    setTimeout(() => showTryDemoChannelsMessage(), 2000);
     return;
   }
   
@@ -691,7 +873,19 @@ function attachStream(url) {
     showStatus('⚠️ Tu navegador no soporta la reproducción de videos HLS. Intenta con Chrome o Safari actualizado.');
     console.error('Este navegador no es compatible con la reproducción HLS');
     setTimeout(() => {
-      showTryDemoChannelsMessage();
+      try {
+        showTryDemoChannelsMessage();
+        // Intentar cargar un canal DASH automáticamente como alternativa
+        const dashChannels = document.querySelectorAll('#channel-list li');
+        const directvChannel = Array.from(dashChannels).find(li => 
+          li.textContent.includes("DIRECTV Sports HD")
+        );
+        if (directvChannel) {
+          directvChannel.click();
+        }
+      } catch(e) {
+        console.error('Error mostrando mensaje de demo:', e);
+      }
     }, 3000);
   }
 }
