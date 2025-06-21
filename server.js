@@ -1161,6 +1161,7 @@ app.get('/api/stream/proxy', async (req, res) => {
   const mapping = {
     dsportshd: 'dsports',
     dsports: 'dsports',
+    dsportshd: 'dsports',
     dsports2hd: 'dsports2',
     dsports2: 'dsports2',
     dsportsplus: 'dsportsplus',
@@ -1285,6 +1286,50 @@ app.get('/api/mobile/stream', async (req, res) => {
       message: error.message 
     });
   }
+});
+
+// Endpoint para obtener todos los tokens disponibles actualmente para el frontend
+// No requiere contraseña ya que solo devuelve tokens, no información sensible
+app.get('/api/tokens/current', (req, res) => {
+  db.all('SELECT token, note FROM tokens WHERE expiresAt > ? ORDER BY expiresAt DESC', [Date.now()], (err, rows) => {
+    if (err) {
+      console.error('Error al obtener tokens actuales:', err);
+      return res.status(500).json({ error: 'Error interno del servidor' });
+    }
+    
+    // Creamos un objeto con los tokens actuales en el formato channel: token
+    const currentTokens = {};
+    rows.forEach(row => {
+      // El campo note contiene el nombre del canal
+      if (row.note && row.token) {
+        // Convertimos nombres como 'dsports' a 'DIRECTV Sports HD' para coincidencia
+        let channelName = row.note;
+        
+        // Mapeo de nombres de canales entre la base de datos y el frontend
+        const channelMapping = {
+          'dsports': 'DIRECTV Sports HD',
+          'dsports2': 'DIRECTV Sports 2 HD',
+          'dsportsplus': 'DirecTV Plus',
+          'espnpremium': 'ESPN Premium',
+          'liga1max': 'Liga 1 Max'
+        };
+        
+        // Si hay un mapeo, usarlo
+        if (channelMapping[channelName]) {
+          channelName = channelMapping[channelName];
+        }
+        
+        currentTokens[channelName] = row.token;
+      }
+    });
+    
+    res.json({
+      success: true,
+      tokens: currentTokens,
+      count: Object.keys(currentTokens).length,
+      timestamp: Date.now()
+    });
+  });
 });
 
 // Configurar tarea programada para actualizar tokens cada 6 horas
