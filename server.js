@@ -1305,17 +1305,37 @@ app.get('/api/tokens/current', (req, res) => {
         // Convertimos nombres como 'dsports' a 'DIRECTV Sports HD' para coincidencia
         let channelName = row.note;
         
+        // Si es un token auto-scrapeado, extraer el nombre del canal
+        if (channelName.includes('Auto-scraped for ')) {
+          // Extraer el nombre después de "Auto-scraped for "
+          channelName = channelName.split('Auto-scraped for ')[1];
+          console.log(`Token auto-scrapeado detectado. Nombre original: "${row.note}", extraído: "${channelName}"`);
+        }
+        
         // Mapeo de nombres de canales entre la base de datos y el frontend
         const channelMapping = {
+          // DirecTV/DSports
           'dsports': 'DIRECTV Sports HD',
           'dsports2': 'DIRECTV Sports 2 HD',
           'dsportsplus': 'DirecTV Plus',
+          // ESPN
+          'espn': 'ESPN',
+          'espn2': 'ESPN 2',
+          'espn3': 'ESPN 3',
+          'espn4': 'ESPN 4',
+          'espn5': 'ESPN 5',
+          'espn6': 'ESPN 6',
+          'espn7': 'ESPN 7',
           'espnpremium': 'ESPN Premium',
-          'liga1max': 'Liga 1 Max'
+          // Otros
+          'liga1max': 'Liga 1 Max',
+          'tycsports': 'TyC Sports',
+          'tntsports': 'TNT Sports'
         };
         
         // Si hay un mapeo, usarlo
         if (channelMapping[channelName]) {
+          console.log(`Mapeando canal: "${channelName}" -> "${channelMapping[channelName]}"`);
           channelName = channelMapping[channelName];
         }
         
