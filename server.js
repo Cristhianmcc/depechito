@@ -16,8 +16,28 @@ const PORT = process.env.PORT || 4000;
 const APP_URL = process.env.APP_URL || 'https://depechito.onrender.com';
 const app = express();
 
-// Habilitar CORS para todas las rutas
-app.use(cors());
+// Habilitar CORS para todas las rutas con opciones extendidas
+app.use(cors({
+  origin: '*',  // Permitir cualquier origen (en producción, limitar según necesidades)
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Origin', 'X-Requested-With', 'Accept', 'Referer', 'User-Agent'],
+  credentials: true,
+  maxAge: 86400
+}));
+
+// Middleware adicional para asegurar que las cabeceras CORS se establecen correctamente
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  
+  // Manejar preflight requests
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  
+  next();
+});
 
 // Permitir el procesamiento de JSON en el cuerpo de las peticiones
 app.use(express.json());
@@ -99,15 +119,15 @@ const DSPORTS_DIRECT_LINKS = {
   dsports: "https://Y2FzdGxl.fubohd.com:443/dsports/mono.m3u8?token=956e33a590747b8cd1b1325b8d9c07d7b2d8bb00-c7-1750472825-1750454825",
   dsports2: "https://b2ZmaWNpYWw.fubohd.com:443/dsports2/mono.m3u8?token=08fe0524dec1f097b74b9531ee00b6ce81a54408-61-1750472828-1750454828",
   dsportsplus: "https://x4bnd7lq.fubohd.com:443/dsportsplus/mono.m3u8?token=031f9c309af6ccd639fe06f97a903f58cac11c7c-8d-1750472831-1750454831",
-  
   // ESPN
-  espn: "https://bgvnzw5k.fubohd.com:443/espn/mono.m3u8?token=c5a74b171e49b1022702479bc250dde57771e1eb-42-1750472834-1750454834",
+  espn: "https://dglvz29s.fubohd.com:443/espn/mono.m3u8?token=d1ada30d5e96fb31420079d8bb2-1750585779-1750567779",
   espn2: "https://Y2FzdGxl.fubohd.com:443/espn2/mono.m3u8?token=b6b732d221d005ff7a92e799553614008abf776c-cb-1750472837-1750454837",
-  espn3: "https://c2nvdxq.fubohd.com:443/espn3/mono.m3u8?token=a744710486ee63a8d6290b265674bb262ad41877-84-1750472841-1750454841",
-  espn4: "https://dmvudge.fubohd.com:443/espn4/mono.m3u8?token=e9c61bc73e1e3bce1b5902430548767eb83ab681-d3-1750472844-1750454844",
-  espn5: "https://qzv4jmsc.fubohd.com:443/espn5/mono.m3u8?token=a41ddbe916dcff4af4578aa064fa56d6e97e99ef-2-1750472847-1750454847",
-  espn6: "https://x4bnd7lq.fubohd.com:443/espn6/mono.m3u8?token=48ffe2fbf34e4bbb88f4ad406cebd3f4ad862b15-42-1750472850-1750454850",
-  espn7: "https://cgxheq.fubohd.com:443/espn7/mono.m3u8?token=d9f0d7712302c3c0861a1fe869fafbb33696617d-ae-1750472853-1750454853",
+  espn3: "https://c2nvdxq.fubohd.com:443/espn3/mono.m3u8?token=a744710486ee63a8d6290b265674bb262ad41877-84-1750472841-1750454841",  
+  // URLs específicas para los siguientes canales con sus propios subdominios
+  espn4: "https://xzc2tdf3.fubohd.com:443/espn4/mono.m3u8?token=f8bc4039e549b0ba3c49f3e39e0c9e93e99d6402-c3-1750472844-1750454844",
+  espn5: "https://r4nd0m.fubohd.com:443/espn5/mono.m3u8?token=84bbce613ca0f6c513f9a3cad8eaed913db98290f-2f-1750472860-1750454860",
+  espn6: "https://esp6d0m.fubohd.com:443/espn6/mono.m3u8?token=ee0254fc9e97a79a57a9f5dc8fc9141c03d72e5e-a5-1750472860-1750454860",
+  espn7: "https://mzxncvb.fubohd.com:443/espn7/mono.m3u8?token=b2301b0c84a70afbcb8bbc328a9ee2a03e1fc99a-42-1750472860-1750454860",
   espnpremium: "https://aGl2ZQ.fubohd.com:443/espnpremium/mono.m3u8?token=83a85799163c43376ed43d8d7910fcf3109cac2f-fc-1750472857-1750454857",
   
   // Otros canales
@@ -346,20 +366,27 @@ async function scrapePelotaLibreHDTV(channel) {
     'directv sports 2 hd': 'dsports2',
     'dsportsplus': 'dsportsplus',
     'directv plus': 'dsportsplus',
-    'directv sports plus': 'dsportsplus',
-    'espn': 'espn',
+    'directv sports plus': 'dsportsplus',    'espn': 'espn',
     'espn2': 'espn2',
     'espn 2': 'espn2',
     'espn3': 'espn3',
     'espn 3': 'espn3',
     'espn4': 'espn4',
     'espn 4': 'espn4',
+    'espn4-ar': 'espn4',
+    'espn4-pe': 'espn4',
     'espn5': 'espn5',
     'espn 5': 'espn5',
+    'espn5-ar': 'espn5',
+    'espn5-pe': 'espn5',
     'espn6': 'espn6',
     'espn 6': 'espn6',
+    'espn6-ar': 'espn6',
+    'espn6-pe': 'espn6',
     'espn7': 'espn7',
     'espn 7': 'espn7',
+    'espn7-ar': 'espn7',
+    'espn7-pe': 'espn7',
     'espnpremium': 'espnpremium',
     'espn premium': 'espnpremium',
     'liga1max': 'liga1max',
@@ -367,104 +394,211 @@ async function scrapePelotaLibreHDTV(channel) {
     'movistar deportes': 'movistar',
     'gol peru': 'golperu'
   };
-  
-  // Normalizar el nombre del canal
+    // Normalizar el nombre del canal
   const normalizedChannel = channel.toLowerCase().trim();
-  const channelId = channelMap[normalizedChannel] || normalizedChannel;
+  let channelId = channelMap[normalizedChannel] || normalizedChannel;
   
-  // URL de pelotalibrehdtv para el canal específico
-  const url = `https://pelotalibrehdtv.com/canales.php?stream=${channelId}`;
-  
-  try {
-    // Configurar los headers para parecer un navegador normal
-    const headers = {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-      'Accept-Language': 'es-ES,es;q=0.8,en-US;q=0.5,en;q=0.3',
-      'Referer': 'https://pelotalibrehdtv.com/',
-      'Connection': 'keep-alive',
-      'Upgrade-Insecure-Requests': '1',
-      'Cache-Control': 'max-age=0'
-    };
-    
-    // Hacer la petición con un timeout razonable
-    console.log(`Realizando petición a: ${url}`);
-    const response = await fetch(url, {
-      method: 'GET',
-      headers,
-      agent: httpsAgent,
-      timeout: 10000
-    });
-    
-    if (!response.ok) {
-      console.error(`Error al acceder a pelotalibrehdtv: ${response.status} ${response.statusText}`);
-      return null;
-    }
-    
-    const pageContent = await response.text();
-    
-    // Buscar la URL del stream en el HTML usando una expresión regular
-    // Buscamos específicamente la variable playbackURL en el script
-    const playbackUrlMatch = pageContent.match(/var\s+playbackURL\s*=\s*"([^"]+)"/i);
-    
-    if (!playbackUrlMatch || !playbackUrlMatch[1]) {
-      console.warn(`No se encontró la URL del stream para ${channel}`);
-      return null;
-    }
-    
-    const streamUrl = playbackUrlMatch[1];
-    console.log(`Stream URL encontrado: ${streamUrl}`);
-    
-    // Extraer el token de la URL
-    const tokenMatch = streamUrl.match(/token=([^&]+)/);
-    if (!tokenMatch || !tokenMatch[1]) {
-      console.warn(`No se pudo extraer el token para ${channel}`);
-      return null;
-    }
-    
-    const token = tokenMatch[1];
-    
-    // Extraer la URL base sin el token
-    const baseUrlMatch = streamUrl.match(/(.*?)\?token=/);
-    const baseUrl = baseUrlMatch ? baseUrlMatch[1] : null;
-    
-    // Preparar el resultado
-    const result = {
-      channel: channelId,
-      originalChannel: channel,
-      token: token,
-      baseUrl: baseUrl,
-      fullUrl: streamUrl,
-      timestamp: Date.now()
-    };
-    
-    console.log(`Token obtenido con éxito para ${channel}: ${token.substring(0, 15)}...`);
-    
-    // Guardar el token en la base de datos usando la función saveToken
-    saveToken(token, {
-      createdAt: Date.now(),
-      expiresAt: Date.now() + (24 * 60 * 60 * 1000),
-      note: `Auto-scraped for ${channel}`,
-      hours: 24
-    }, (success) => {
-      if (success) {
-        console.log(`Token para ${channel} guardado correctamente en la base de datos`);
-      } else {
-        console.error(`Error al guardar token para ${channel} en la base de datos`);
-      }
-    });
-    
-    // Actualizar el objeto de enlaces directos
-    if (baseUrl && token && channelId) {
-      DSPORTS_DIRECT_LINKS[channelId] = streamUrl;
-      console.log(`Enlace directo actualizado para ${channelId}`);
-    }
-    
-    return result;
-  } catch (error) {
-    console.error(`Error al obtener token para ${channel}:`, error);
-    return null;
+  // Corrección adicional para canales ESPN específicos
+  if (channelId === 'espn4' || channelId === 'espn 4') {
+    channelId = 'espn4';
+  } else if (channelId === 'espn5' || channelId === 'espn 5') {
+    channelId = 'espn5';
+  } else if (channelId === 'espn6' || channelId === 'espn 6') {
+    channelId = 'espn6';
+  } else if (channelId === 'espn7' || channelId === 'espn 7') {
+    channelId = 'espn7';
   }
+    // Dominios alternativos para intentar
+  const domains = [
+    'pelotalibrehdtv.com',
+    'pelotalibre.me',
+    'pelotalibre.net',
+    'pelotalibre.live',
+    'pelotalibre.one',
+    'pelotalibre.pro',
+    'futbollibre.net',
+    'futbollibre.online'
+  ];
+  
+  // Información para debug
+  console.log(`Canal normalizado: "${normalizedChannel}" → ID en pelotalibrehdtv: "${channelId}"`);
+  
+  // Intentar con cada dominio hasta encontrar uno que funcione
+  for (const domain of domains) {
+    const url = `https://${domain}/canales.php?stream=${channelId}`;
+    console.log(`Intentando con dominio: ${domain} (URL: ${url})`);
+    
+    try {
+      // Configurar los headers para parecer un navegador normal
+      const headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'es-ES,es;q=0.8,en-US;q=0.5,en;q=0.3',
+        'Referer': `https://${domain}/`,
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+        'Cache-Control': 'max-age=0'
+      };
+      
+      // Hacer la petición con un timeout razonable
+      console.log(`Realizando petición a: ${url}`);
+      const response = await fetch(url, {
+        method: 'GET',
+        headers,
+        agent: httpsAgent,
+        timeout: 15000 // Aumentamos el timeout a 15 segundos
+      });
+      
+      if (!response.ok) {
+        console.error(`Error al acceder a ${domain}: ${response.status} ${response.statusText}`);
+        continue; // Intentar con el siguiente dominio
+      }
+      
+      const pageContent = await response.text();
+      console.log(`Contenido recibido de ${domain} (longitud: ${pageContent.length} bytes)`);
+      
+      // Buscar la URL del stream en el HTML usando diferentes patrones
+      let streamUrl = null;
+      
+      // 1. Patrón original: buscar playbackURL en scripts
+      const playbackUrlMatch = pageContent.match(/var\s+playbackURL\s*=\s*"([^"]+)"/i);
+      if (playbackUrlMatch && playbackUrlMatch[1]) {
+        streamUrl = playbackUrlMatch[1];
+        console.log(`Stream URL encontrado con patrón playbackURL: ${streamUrl}`);
+      }
+      
+      // 2. Buscar directamente en atributos data- que pueden contener la URL
+      if (!streamUrl) {
+        const dataUrlMatch = pageContent.match(/data-stream\s*=\s*["']([^"']+)["']/i);
+        if (dataUrlMatch && dataUrlMatch[1]) {
+          streamUrl = dataUrlMatch[1];
+          console.log(`Stream URL encontrado en atributo data-stream: ${streamUrl}`);
+        }
+      }
+      
+      // 3. Buscar iframe con src que contenga m3u8
+      if (!streamUrl) {
+        const iframeSrcMatch = pageContent.match(/iframe[^>]+src\s*=\s*["']([^"']+\.m3u8[^"']*)["']/i);
+        if (iframeSrcMatch && iframeSrcMatch[1]) {
+          streamUrl = iframeSrcMatch[1];
+          console.log(`Stream URL encontrado en iframe src: ${streamUrl}`);
+        }
+      }
+      
+      // 4. Última opción: buscar cualquier URL de m3u8 en la página
+      if (!streamUrl) {
+        streamUrl = extractM3U8(pageContent);
+        if (streamUrl) {
+          console.log(`Stream URL encontrado con regex general: ${streamUrl}`);
+        }
+      }
+      
+      // Si no encontramos ninguna URL, continuar con el siguiente dominio
+      if (!streamUrl) {
+        console.warn(`No se encontró ninguna URL de stream en ${domain} para ${channel}`);
+        continue;
+      }
+      
+      // Extraer el token de la URL
+      const tokenMatch = streamUrl.match(/token=([^&]+)/);
+      if (!tokenMatch || !tokenMatch[1]) {
+        console.warn(`No se pudo extraer el token para ${channel} de la URL: ${streamUrl}`);
+        continue;
+      }
+      
+      const token = tokenMatch[1];
+      
+      // Extraer la URL base sin el token
+      const baseUrlMatch = streamUrl.match(/(.*?)\?token=/);
+      const baseUrl = baseUrlMatch ? baseUrlMatch[1] : null;
+      
+      if (!baseUrl) {
+        console.warn(`No se pudo extraer la URL base para ${channel}`);
+        continue;
+      }
+        // Validar que la URL parece ser de fubohd.com (patrón común para los streams)
+      if (!baseUrl.includes('fubohd.com')) {
+        console.warn(`La URL base no es de fubohd.com: ${baseUrl}`);
+        // Continuamos igualmente, podría ser otro proveedor válido
+      }
+      
+      // Preparar el resultado
+      const result = {
+        channel: channelId,
+        originalChannel: channel,
+        token: token,
+        baseUrl: baseUrl,
+        fullUrl: streamUrl,
+        timestamp: Date.now(),
+        source: domain
+      };
+      
+      console.log(`Token obtenido con éxito para ${channel}: ${token.substring(0, 15)}... (desde ${domain})`);
+      
+      // Guardar el token en la base de datos usando la función saveToken
+      saveToken(token, {
+        createdAt: Date.now(),
+        expiresAt: Date.now() + (24 * 60 * 60 * 1000),
+        note: `Auto-scraped for ${channel}`,
+        hours: 24
+      }, (success) => {
+        if (success) {
+          console.log(`Token para ${channel} guardado correctamente en la base de datos`);
+        } else {
+          console.error(`Error al guardar token para ${channel} en la base de datos`);
+        }
+      });
+      
+      // Actualizar el objeto de enlaces directos
+      if (baseUrl && token && channelId) {
+        // Asegurarse de que estamos utilizando el nombre correcto para el canal
+        const finalChannelId = channelId.toLowerCase().replace(/\s+/g, '');
+        
+        // Asegurarse de que usamos las URLs base correctas para los canales ESPN
+        let updatedStreamUrl = streamUrl;
+        
+        if (finalChannelId === 'espn4') {
+          // Usar la URL base específica para ESPN4
+          const espn4BaseUrl = 'https://xzc2tdf3.fubohd.com/espn4/mono.m3u8';
+          updatedStreamUrl = `${espn4BaseUrl}?token=${token}`;
+          console.log(`Usando URL base específica para ESPN4: ${espn4BaseUrl}`);
+        } else if (finalChannelId === 'espn5') {
+          // Usar la URL base específica para ESPN5
+          const espn5BaseUrl = 'https://r4nd0m.fubohd.com/espn5/mono.m3u8';
+          updatedStreamUrl = `${espn5BaseUrl}?token=${token}`;
+          console.log(`Usando URL base específica para ESPN5: ${espn5BaseUrl}`);
+        } else if (finalChannelId === 'espn6') {
+          // Usar la URL base específica para ESPN6
+          const espn6BaseUrl = 'https://esp6d0m.fubohd.com/espn6/mono.m3u8';
+          updatedStreamUrl = `${espn6BaseUrl}?token=${token}`;
+          console.log(`Usando URL base específica para ESPN6: ${espn6BaseUrl}`);
+        } else if (finalChannelId === 'espn7') {
+          // Usar la URL base específica para ESPN7
+          const espn7BaseUrl = 'https://mzxncvb.fubohd.com/espn7/mono.m3u8';
+          updatedStreamUrl = `${espn7BaseUrl}?token=${token}`;
+          console.log(`Usando URL base específica para ESPN7: ${espn7BaseUrl}`);
+        }
+        
+        // Actualizar el enlace directo
+        DSPORTS_DIRECT_LINKS[finalChannelId] = updatedStreamUrl;
+        console.log(`Enlace directo actualizado para ${finalChannelId} (original: ${channelId})`);
+        
+        // Log detallado para depuración
+        console.log(`Token: ${token.substring(0, 15)}...`);
+        console.log(`URL Base original: ${baseUrl}`);
+        console.log(`URL Completa actualizada: ${updatedStreamUrl}`);
+      }
+      
+      return result;
+    } catch (error) {
+      console.error(`Error al obtener token para ${channel} desde ${domain}:`, error);
+      // Continuar con el siguiente dominio
+    }
+  }
+  
+  // Si llegamos aquí, ningún dominio funcionó
+  console.error(`No se pudo obtener token para ${channel} en ningún dominio`);
+  return null;
 }
 
 // Función para buscar y actualizar todos los tokens de canales conocidos
@@ -489,21 +623,60 @@ async function updateAllTokens() {
   
   const results = {};
   let successCount = 0;
+  let failureCount = 0;
+  
+  console.log(`Actualizando tokens para ${channels.length} canales...`);
   
   // Procesar canales en serie para no sobrecargar el servidor objetivo
   for (const channel of channels) {
     try {
-      console.log(`Procesando canal: ${channel}`);
+      console.log(`\n===== Procesando canal: ${channel} =====`);
+      
       // Pequeña pausa entre peticiones para no levantar sospechas
-      await new Promise(resolve => setTimeout(resolve, 2000 + Math.random() * 1000));
+      await new Promise(resolve => setTimeout(resolve, 3000 + Math.random() * 2000));
       
       const result = await scrapePelotaLibreHDTV(channel);
+      
       if (result) {
         results[channel] = result;
         successCount++;
+        console.log(`✅ Token actualizado correctamente para ${channel}`);
+      } else {
+        failureCount++;
+        console.error(`❌ No se pudo obtener token para ${channel}`);
       }
     } catch (error) {
-      console.error(`Error al actualizar token para ${channel}:`, error);
+      failureCount++;
+      console.error(`❌ Error al actualizar token para ${channel}:`, error);
+    }
+  }
+  
+  // Generar reporte de la actualización
+  console.log("\n========= REPORTE DE ACTUALIZACIÓN DE TOKENS =========");
+  console.log(`Canales totales: ${channels.length}`);
+  console.log(`Actualizados correctamente: ${successCount}`);
+  console.log(`Fallidos: ${failureCount}`);
+  console.log(`Tasa de éxito: ${Math.round((successCount / channels.length) * 100)}%`);
+  console.log("====================================================\n");
+  
+  // Si no se actualizó ningún token, podría haber un problema de red o bloqueo
+  if (successCount === 0) {
+    console.error("ADVERTENCIA: No se pudo actualizar ningún token. Posible bloqueo o problema de red.");
+    
+    // Intentar enviar una solicitud a un sitio conocido para verificar la conectividad
+    try {
+      const testResponse = await fetch('https://www.google.com', { 
+        agent: httpsAgent,
+        timeout: 5000
+      });
+      if (testResponse.ok) {
+        console.log("✅ La conexión a Internet parece estar funcionando.");
+        console.error("❌ Es posible que pelotalibrehdtv.com esté bloqueando las solicitudes del servidor.");
+      } else {
+        console.error(`❌ Problema de conectividad. Status: ${testResponse.status}`);
+      }
+    } catch (testError) {
+      console.error("❌ Error de conectividad general:", testError.message);
     }
   }
   
@@ -598,30 +771,104 @@ app.get('/api/status', (req, res) => {
 app.get('/api/stream/:channel', async (req, res) => {
   console.log(`Solicitud de stream recibida para canal: ${req.params.channel} desde ${req.get('origin') || 'origen desconocido'}`);
   
+  // Mapeo más completo con variantes
   const mapping = {
     dsports: 'dsports',
-    movistar: 'movistar',
+    'directv sports': 'dsports',
+    'directv sports hd': 'dsports',
+    'directvsports': 'dsports',
+    'directvsportshd': 'dsports',
+    
     dsports2: 'dsports2',
-    espnpremium: 'espnpremium',
-    liga1max: 'liga1max',
-    golperu: 'golperu',
+    'directv sports 2': 'dsports2',
+    'directv sports 2 hd': 'dsports2',
+    'directvsports2': 'dsports2',
+    'directvsports2hd': 'dsports2',
+    
     dsportsplus: 'dsportsplus',
+    'directv sports plus': 'dsportsplus',
+    'directv sports+': 'dsportsplus',
+    'directvplus': 'dsportsplus',
+    'directvsportsplus': 'dsportsplus',
+    
+    movistar: 'movistar',
+    'movistar deportes': 'movistar',
+    
+    espnpremium: 'espnpremium',
+    'espn premium': 'espnpremium',
+    'espn premium hd': 'espnpremium',
+    
+    liga1max: 'liga1max',
+    'liga 1 max': 'liga1max',
+    
+    golperu: 'golperu',
+    'gol peru': 'golperu',
+    
     espn: 'espn',
+    'espnhd': 'espn',
+    'espn hd': 'espn',
+    
     espn2: 'espn2',
+    'espn 2': 'espn2',
+    'espn2hd': 'espn2',
+    'espn 2 hd': 'espn2',
+    
     espn3: 'espn3',
+    'espn 3': 'espn3',
+    'espn3hd': 'espn3',
+    'espn 3 hd': 'espn3',
+    
     espn4: 'espn4',
+    'espn 4': 'espn4',
+    'espn4hd': 'espn4',
+    'espn 4 hd': 'espn4',
+    
+    espn5: 'espn5',
+    'espn 5': 'espn5',
+    
+    espn6: 'espn6',
+    'espn 6': 'espn6',
+    
+    espn7: 'espn7',
+    'espn 7': 'espn7'
   };
-  const slug = mapping[req.params.channel.toLowerCase().replace(/\s+/g, '')];
-  if (!slug) return res.status(400).json({ error: 'Channel not supported' });
   
-  // Verificar si debemos usar un enlace directo de DirecTV Sports
-  const shouldUseDirectLink = req.query.refresh !== 'true' && 
+  // Normalizar el canal y encontrar el slug correspondiente
+  const normalizedChannel = req.params.channel.toLowerCase().replace(/\s+/g, '');
+  const slug = mapping[normalizedChannel] || mapping[req.params.channel.toLowerCase()];
+  
+  if (!slug) {
+    console.error(`Canal no soportado: ${req.params.channel}`);
+    return res.status(400).json({ 
+      error: 'Canal no soportado',
+      message: `No se encontró mapeo para el canal: ${req.params.channel}`,
+      availableChannels: Object.keys(mapping).filter(k => !k.includes(' ')).sort()
+    });
+  }
+  
+  // Forzar actualización si se especifica en la solicitud
+  const forceUpdate = req.query.refresh === 'true';
+  
+  // Verificar si debemos usar un enlace directo para acelerar la respuesta
+  const shouldUseDirectLink = !forceUpdate && 
     DSPORTS_DIRECT_LINKS[slug] && 
-    (slug === 'dsports' || slug === 'dsports2' || slug === 'dsportsplus');
+    DSPORTS_DIRECT_LINKS[slug].indexOf('token=') > -1;
   
   if (shouldUseDirectLink) {
-    console.log(`Usando enlace directo para ${slug}`);
-    return res.json({ url: DSPORTS_DIRECT_LINKS[slug] });
+    console.log(`Usando enlace directo para ${slug}: ${DSPORTS_DIRECT_LINKS[slug].substring(0, 50)}...`);
+    
+    // Verificar si el token parecería ser válido (basado en longitud estándar)
+    const tokenMatch = DSPORTS_DIRECT_LINKS[slug].match(/token=([^&]+)/);
+    if (tokenMatch && tokenMatch[1].length > 20) {
+      return res.json({ 
+        url: DSPORTS_DIRECT_LINKS[slug],
+        channel: slug,
+        proxyUrl: `${req.protocol}://${req.get('host')}/proxy-stream?url=${encodeURIComponent(DSPORTS_DIRECT_LINKS[slug])}`
+      });
+    } else {
+      console.log(`Token en enlace directo para ${slug} parece inválido, forzando actualización`);
+      // Continuar con la actualización del token
+    }
   }
   
   try {
@@ -633,13 +880,22 @@ app.get('/api/stream/:channel', async (req, res) => {
       'pelotalibre.one',
       'pelotalibre.xyz',
     ];
-    let url = null;
-    if (slug === 'espn2' || slug === 'espn3' || slug === 'espn4') {
-      // Intentar con diferentes slugs específicos para ESPN2/ESPN3
+    let url = null;    if (slug === 'espn2' || slug === 'espn3' || slug === 'espn4' || slug === 'espn5' || slug === 'espn6' || slug === 'espn7') {
+      // Intentar con diferentes slugs específicos para ESPN channels
       let specialSlugs;
-      if (slug === 'espn2') specialSlugs = ['espn2', 'espn-2', 'espn2-hd'];
-      else if (slug === 'espn3') specialSlugs = ['espn3', 'espn-3', 'espn3-hd'];
-      else specialSlugs = ['espn4', 'espn-4', 'espn4-hd', 'espn4hd', 'espn 4', 'espn4-peru'];
+      if (slug === 'espn2') {
+        specialSlugs = ['espn2', 'espn-2', 'espn2-hd'];
+      } else if (slug === 'espn3') {
+        specialSlugs = ['espn3', 'espn-3', 'espn3-hd'];
+      } else if (slug === 'espn4') {
+        specialSlugs = ['espn4', 'espn-4', 'espn4-hd', 'espn4hd', 'espn 4', 'espn4-peru'];
+      } else if (slug === 'espn5') {
+        specialSlugs = ['espn5', 'espn-5', 'espn5-hd', 'espn5hd', 'espn 5'];
+      } else if (slug === 'espn6') {
+        specialSlugs = ['espn6', 'espn-6', 'espn6-hd', 'espn6hd', 'espn 6'];
+      } else if (slug === 'espn7') {
+        specialSlugs = ['espn7', 'espn-7', 'espn7-hd', 'espn7hd', 'espn 7'];
+      }
       for (const s of specialSlugs) {
         for (const domain of candidateDomains) {
           try {
@@ -1140,216 +1396,388 @@ app.get('/api/rojadirecta/:query', async (req, res) => {
   }
 });
 
-// Ruta específica para el proxy de streams para dispositivos móviles
-app.get('/api/stream/proxy', async (req, res) => {
-  const channel = req.query.channel;
-  const isMobile = req.query.mobile === 'true';
+// Función para validar las URLs de streaming
+function isValidStreamingUrl(url) {
+  try {
+    const parsedUrl = new URL(url);
+    // Solo permitir dominios específicos para el proxy
+    const allowedDomains = [
+      'fubohd.com',
+      'pelotalibrehdtv.com',
+      'pelotalibre.me',
+      'akamaized.net',
+      'mux.dev',
+      'cloudfront.net'
+    ];
+    
+    return allowedDomains.some(domain => parsedUrl.hostname.includes(domain));
+  } catch (e) {
+    return false;
+  }
+}
+
+// Endpoint proxy para M3U8 y TS para evitar problemas de CORS
+app.get('/proxy-stream', async (req, res) => {
+  const url = req.query.url;
   
-  console.log(`Solicitud de proxy recibida para canal: ${channel} (Móvil: ${isMobile})`);
-  
-  if (!channel) {
-    return res.status(400).json({ error: 'Se requiere parámetro de canal' });
+  if (!url || !isValidStreamingUrl(url)) {
+    return res.status(400).send('URL inválida o no permitida');
   }
   
-  // Normalizar el nombre del canal para buscar en mappings
-  const normalizedChannel = channel.toLowerCase()
-    .replace(/\s+/g, '')
-    .replace('directv', 'dsports')
-    .replace('liga1', 'liga1max');
-  
-  // Mapeo de nombres de canales a identificadores de ruta
-  const mapping = {
-    dsportshd: 'dsports',
-    dsports: 'dsports',
-    dsportshd: 'dsports',
-    dsports2hd: 'dsports2',
-    dsports2: 'dsports2',
-    dsportsplus: 'dsportsplus',
-    directvplus: 'dsportsplus',
-    liga1max: 'liga1max',
-    golperu: 'golperu',
-    espn: 'espn',
-    espn2: 'espn2',
-    espn3: 'espn3',
-    espn4: 'espn4',
-    espnpremium: 'espnpremium',
-    movistardeportes: 'movistar'
-  };
-  
-  const slug = mapping[normalizedChannel] || normalizedChannel;
+  console.log(`Proxy solicitado para: ${url.substring(0, 100)}...`);
   
   try {
-    let streamUrl = '';
-    let token = '';
+    const streamResponse = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Referer': 'https://pelotalibrehdtv.com/',
+      },
+      agent: httpsAgent,
+      timeout: 15000
+    });
     
-    // Primero intentamos usar un enlace directo si está disponible
-    if (DSPORTS_DIRECT_LINKS[slug]) {
-      console.log(`Usando enlace directo para ${slug}`);
-      streamUrl = DSPORTS_DIRECT_LINKS[slug];
-      
-      // Extraer token del enlace directo
-      const tokenMatch = streamUrl.match(/token=([^&]+)/);
-      if (tokenMatch) {
-        token = tokenMatch[1];
-      }
-    } else {
-      // Fallback: Intentar redirigir a la ruta específica
-      return res.redirect(`/api/stream/${slug}?mobile=true`);
+    if (!streamResponse.ok) {
+      console.error(`Error al obtener stream: ${streamResponse.status} ${streamResponse.statusText}`);
+      return res.status(streamResponse.status).send(`Error al obtener stream: ${streamResponse.statusText}`);
     }
     
-    // Devolvemos la URL y el token
-    return res.json({ 
-      url: streamUrl, 
-      token: token,
-      channel: channel,
-      isMobile: isMobile
-    });
+    // Copiar headers relevantes
+    const contentType = streamResponse.headers.get('content-type');
+    if (contentType) {
+      res.setHeader('Content-Type', contentType);
+    }
+    
+    // Para archivos M3U8, necesitamos modificar las URLs para que pasen por nuestro proxy
+    if (url.endsWith('.m3u8') || contentType?.includes('application/vnd.apple.mpegurl')) {
+      const body = await streamResponse.text();
+      
+      // Modificar URLs en el archivo M3U8 para que apunten a nuestro proxy
+      const baseUrl = new URL(url);
+      baseUrl.search = ''; // Eliminar parámetros de búsqueda
+      baseUrl.hash = '';   // Eliminar fragmento
+      const baseUrlString = baseUrl.href.substring(0, baseUrl.href.lastIndexOf('/') + 1);
+      
+      const modifiedBody = body.replace(
+        /(\.ts|\.m3u8)(\?|$)/g,
+        (match, extension, query) => {
+          return `${extension}${query ? query : ''}`;
+        }
+      );
+      
+      return res.send(modifiedBody);
+    } else {
+      // Para otros tipos de archivos, simplemente transmitir la respuesta
+      streamResponse.body.pipe(res);
+    }
   } catch (error) {
-    console.error(`Error obteniendo stream para ${channel}:`, error);
-    return res.status(500).json({ 
-      error: 'Error al obtener el stream', 
-      message: error.message 
-    });
+    console.error('Error en proxy de streaming:', error);
+    res.status(500).send('Error en proxy de streaming: ' + error.message);
   }
 });
 
-// Ruta específica para obtener enlaces de stream adaptados para móviles
-app.get('/api/mobile/stream', async (req, res) => {
-  const channelName = req.query.channel;
-  const userAgent = req.query.device || req.headers['user-agent'];
-  
-  console.log(`[MÓVIL] Solicitud de stream para: ${channelName}`);
-  console.log(`[MÓVIL] User-Agent: ${userAgent?.substring(0, 100) || 'no disponible'}`);
-  
-  if (!channelName) {
-    return res.status(400).json({ error: 'Se requiere parámetro de canal' });
-  }
-  
-  // Normalizar el nombre del canal
-  const normalizedChannel = channelName.toLowerCase()
-    .replace(/\s+/g, '')
-    .replace('directv', 'dsports')
-    .replace('liga1', 'liga1max');
-  
-  // Mapeo de nombres de canales a identificadores para móviles
-  const mobileMapping = {
-    // Canales de DirecTV Sports
-    dsportshd: 'dsports_mobile',
-    dsports: 'dsports_mobile',
-    dsports2hd: 'dsports2_mobile',
-    dsports2: 'dsports2_mobile',
-    dsportsplus: 'dsportsplus_mobile',
-    directvplus: 'dsportsplus_mobile',
-    // Otros canales
-    liga1max: 'liga1max_mobile',
-    golperu: 'golperu_mobile',
-    espn: 'espn_mobile',
-    espn2: 'espn2_mobile',
-    espn3: 'espn3_mobile',
-    espn4: 'espn4_mobile',
-    espnpremium: 'espnpremium_mobile',
-    movistardeportes: 'movistar_mobile'
-  };
-  
-  const slug = mobileMapping[normalizedChannel] || normalizedChannel;
-  
+// Endpoint para diagnosticar problemas con los tokens
+app.get('/api/diagnostic', async (req, res) => {
   try {
-    let streamUrl = '';
-    let token = '';
-    
-    // Primero intentamos usar un enlace directo si está disponible
-    if (DSPORTS_DIRECT_LINKS[slug]) {
-      console.log(`Usando enlace directo para ${slug}`);
-      streamUrl = DSPORTS_DIRECT_LINKS[slug];
-      
-      // Extraer token del enlace directo
-      const tokenMatch = streamUrl.match(/token=([^&]+)/);
-      if (tokenMatch) {
-        token = tokenMatch[1];
+    // Obtener todos los tokens activos
+    db.all('SELECT token, note, createdAt, expiresAt FROM tokens WHERE expiresAt > ? ORDER BY expiresAt DESC', [Date.now()], async (err, rows) => {
+      if (err) {
+        console.error('Error al obtener tokens para diagnóstico:', err);
+        return res.status(500).json({ error: 'Error interno del servidor' });
       }
-    } else {
-      // Fallback: Intentar redirigir a la ruta específica
-      return res.redirect(`/api/stream/${slug}?mobile=true`);
-    }
-    
-    // Devolvemos la URL y el token
-    return res.json({ 
-      url: streamUrl, 
-      token: token,
-      channel: channelName,
-      isMobile: true
-    });
-  } catch (error) {
-    console.error(`Error obteniendo stream para ${channelName}:`, error);
-    return res.status(500).json({ 
-      error: 'Error al obtener el stream', 
-      message: error.message 
-    });
-  }
-});
-
-// Endpoint para obtener todos los tokens disponibles actualmente para el frontend
-// No requiere contraseña ya que solo devuelve tokens, no información sensible
-app.get('/api/tokens/current', (req, res) => {
-  db.all('SELECT token, note FROM tokens WHERE expiresAt > ? ORDER BY expiresAt DESC', [Date.now()], (err, rows) => {
-    if (err) {
-      console.error('Error al obtener tokens actuales:', err);
-      return res.status(500).json({ error: 'Error interno del servidor' });
-    }
-    
-    // Creamos un objeto con los tokens actuales en el formato channel: token
-    const currentTokens = {};
-    rows.forEach(row => {
-      // El campo note contiene el nombre del canal
-      if (row.note && row.token) {
-        // Convertimos nombres como 'dsports' a 'DIRECTV Sports HD' para coincidencia
-        let channelName = row.note;
+      
+      const diagnosticResults = [];
+      let tokenCount = 0;
+      let validTokens = 0;
+      let invalidTokens = 0;
+      
+      // Para cada token, realizar un test
+      for (const row of rows) {
+        tokenCount++;
+        const { token, note } = row;
         
-        // Si es un token auto-scrapeado, extraer el nombre del canal
-        if (channelName.includes('Auto-scraped for ')) {
-          // Extraer el nombre después de "Auto-scraped for "
-          channelName = channelName.split('Auto-scraped for ')[1];
-          console.log(`Token auto-scrapeado detectado. Nombre original: "${row.note}", extraído: "${channelName}"`);
+        try {
+          // Detectar el canal para este token
+          let channel = note;
+          if (note && note.toLowerCase().includes('auto-scraped for ')) {
+            channel = note.toLowerCase().split('auto-scraped for ')[1];
+          }          // Encontrar una URL base adecuada para probar el token
+          let baseUrl = null;
+          if (channel === 'dsports' || channel === 'directv sports hd') {
+            baseUrl = 'https://Y2FzdGxl.fubohd.com/dsports/mono.m3u8';
+          } else if (channel === 'espnpremium') {
+            baseUrl = 'https://aGl2ZQ.fubohd.com/espnpremium/mono.m3u8';
+          } else if (channel === 'espn') {
+            baseUrl = 'https://dglvz29s.fubohd.com/espn/mono.m3u8';
+          } else if (channel === 'espn2') {
+            baseUrl = 'https://Y2FzdGxl.fubohd.com/espn2/mono.m3u8';
+          } else if (channel === 'espn3') {
+            baseUrl = 'https://c2nvdxq.fubohd.com/espn3/mono.m3u8';
+          } else if (channel === 'espn4') {
+            baseUrl = 'https://xzc2tdf3.fubohd.com/espn4/mono.m3u8';
+          } else if (channel === 'espn5') {
+            baseUrl = 'https://r4nd0m.fubohd.com/espn5/mono.m3u8';
+          } else if (channel === 'espn6') {
+            baseUrl = 'https://esp6d0m.fubohd.com/espn6/mono.m3u8';
+          } else if (channel === 'espn7') {
+            baseUrl = 'https://mzxncvb.fubohd.com/espn7/mono.m3u8';
+          } else if (channel === 'liga1max') {
+            baseUrl = 'https://bmv3.fubohd.com/liga1max/mono.m3u8';
+          }
+          
+          // Si tenemos una URL base, prueba el token
+          if (baseUrl) {
+            const testUrl = `${baseUrl}?token=${token}`;
+            const testResponse = await fetch(testUrl, {
+              method: 'HEAD',
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+              },
+              agent: httpsAgent,
+              timeout: 5000
+            });
+            
+            const statusCode = testResponse.status;
+            const isValid = statusCode === 200;
+      if (isValid) {
+              validTokens++;
+              
+              // Actualizar también los enlaces directos cuando encontramos tokens válidos
+              if (channel === 'espn4') {
+                console.log(`Actualizando enlace directo para ESPN4 con token válido`);
+                DSPORTS_DIRECT_LINKS['espn4'] = testUrl;
+              } else if (channel === 'espn5') {
+                console.log(`Actualizando enlace directo para ESPN5 con token válido`);
+                DSPORTS_DIRECT_LINKS['espn5'] = testUrl;
+              } else if (channel === 'espn6') {
+                console.log(`Actualizando enlace directo para ESPN6 con token válido`);
+                DSPORTS_DIRECT_LINKS['espn6'] = testUrl;
+              } else if (channel === 'espn7') {
+                console.log(`Actualizando enlace directo para ESPN7 con token válido`);
+                DSPORTS_DIRECT_LINKS['espn7'] = testUrl;
+              }
+            }
+            
+            diagnosticResults.push({
+              channel,
+              note,
+              token: token.substring(0, 15) + '...',
+              createdAt: new Date(row.createdAt).toLocaleString(),
+              expiresAt: new Date(row.expiresAt).toLocaleString(),
+              testUrl: testUrl.substring(0, 30) + '...',
+              status: statusCode,
+              valid: isValid
+            });
+          } else {
+            diagnosticResults.push({
+              channel,
+              note,
+              token: token.substring(0, 15) + '...',
+              createdAt: new Date(row.createdAt).toLocaleString(),
+              expiresAt: new Date(row.expiresAt).toLocaleString(),
+              status: 'no-test',
+              message: 'No se pudo determinar URL base'
+            });
+          }
+        } catch (testError) {
+          console.warn(`Error al probar token para ${note}:`, testError);
+          diagnosticResults.push({
+            note,
+            token: token.substring(0, 15) + '...',
+            createdAt: new Date(row.createdAt).toLocaleString(),
+            expiresAt: new Date(row.expiresAt).toLocaleString(),
+            status: 'error',
+            error: testError.message
+          });
+        }
+      }
+      
+      res.json({
+        totalTokens: tokenCount,
+        validTokens,
+        invalidTokens,
+        notTested: tokenCount - validTokens - invalidTokens,
+        results: diagnosticResults,
+        timestamp: Date.now()
+      });
+    });
+  } catch (error) {
+    console.error('Error en diagnóstico:', error);
+    res.status(500).json({ error: 'Error durante el diagnóstico' });
+  }
+});
+
+// Endpoint para obtener los tokens más recientes para los clientes
+app.get('/api/tokens/current', async (req, res) => {
+  try {
+    console.log(`Solicitando tokens actuales para el cliente desde ${req.get('origin') || 'origen desconocido'}`);
+    
+    // Limpiar tokens expirados antes de devolver resultados
+    cleanExpiredTokens(async () => {
+      // Consultar tokens desde la base de datos
+      db.all('SELECT token, note, createdAt, expiresAt FROM tokens WHERE expiresAt > ? ORDER BY createdAt DESC', [Date.now()], (err, rows) => {
+        if (err) {
+          console.error('Error al consultar tokens actuales:', err.message);
+          return res.status(500).json({ success: false, error: 'Error interno al obtener tokens' });
         }
         
-        // Mapeo de nombres de canales entre la base de datos y el frontend
-        const channelMapping = {
-          // DirecTV/DSports
+        console.log(`Se encontraron ${rows.length} tokens activos`);
+        
+        // Objeto para almacenar tokens por canal
+        const tokensByChannel = {};
+        
+        // Canales principales que queremos mapear
+        const channelNamesMap = {
           'dsports': 'DIRECTV Sports HD',
+          'directv sports': 'DIRECTV Sports HD', 
+          'directv sports hd': 'DIRECTV Sports HD',
           'dsports2': 'DIRECTV Sports 2 HD',
-          'dsportsplus': 'DirecTV Plus',
-          // ESPN
+          'directv sports 2': 'DIRECTV Sports 2 HD',
+          'directv sports 2 hd': 'DIRECTV Sports 2 HD',
+          'dsportsplus': 'DIRECTV Sports Plus HD',
+          'directv sports plus': 'DIRECTV Sports Plus HD',
+          'directv sports+': 'DIRECTV Sports Plus HD',
           'espn': 'ESPN',
+          'espn hd': 'ESPN',
           'espn2': 'ESPN 2',
+          'espn 2': 'ESPN 2',
           'espn3': 'ESPN 3',
+          'espn 3': 'ESPN 3',
           'espn4': 'ESPN 4',
+          'espn 4': 'ESPN 4',
           'espn5': 'ESPN 5',
+          'espn 5': 'ESPN 5',
           'espn6': 'ESPN 6',
+          'espn 6': 'ESPN 6',
           'espn7': 'ESPN 7',
+          'espn 7': 'ESPN 7',
           'espnpremium': 'ESPN Premium',
-          // Otros
-          'liga1max': 'Liga 1 Max',
-          'tycsports': 'TyC Sports',
-          'tntsports': 'TNT Sports'
+          'espn premium': 'ESPN Premium',
+          'liga1max': 'Liga 1 MAX',
+          'liga 1 max': 'Liga 1 MAX',
+          'movistar deportes': 'Movistar Deportes',
+          'gol peru': 'GOL Peru'
         };
         
-        // Si hay un mapeo, usarlo
-        if (channelMapping[channelName]) {
-          console.log(`Mapeando canal: "${channelName}" -> "${channelMapping[channelName]}"`);
-          channelName = channelMapping[channelName];
+        // Debug: Mostrar todos los tokens encontrados
+        console.log('--- Tokens encontrados en la base de datos ---');
+        rows.forEach((row, index) => {
+          console.log(`[${index+1}/${rows.length}] Token: ${row.token.substring(0, 10)}... | Note: "${row.note}" | Creado: ${new Date(row.createdAt).toLocaleString()} | Expira: ${new Date(row.expiresAt).toLocaleString()}`);
+        });
+        console.log('-------------------------------------------');
+        
+        // Procesar cada token y asociarlo con su canal
+        rows.forEach(row => {
+          const { token, note } = row;
+          
+          // Extraer nombre de canal del note para los tokens auto-scrapeados
+          let channelName = null;
+          
+          if (note && note.toLowerCase().includes('auto-scraped for ')) {
+            // Extraer el nombre del canal después de "auto-scraped for "
+            const extractedChannel = note.substring(note.toLowerCase().indexOf('auto-scraped for ') + 'auto-scraped for '.length).trim().toLowerCase();
+            
+            // Mapear el nombre extraído a un nombre estándar si existe
+            channelName = channelNamesMap[extractedChannel];
+            
+            // Si no hay mapeo directo, intentar encontrar una coincidencia parcial
+            if (!channelName) {
+              // Buscar en el mapa de nombres por coincidencia parcial
+              for (const [key, value] of Object.entries(channelNamesMap)) {
+                if (extractedChannel.includes(key) || key.includes(extractedChannel)) {
+                  channelName = value;
+                  console.log(`Coincidencia parcial para "${extractedChannel}" con clave "${key}" → "${value}"`);
+                  break;
+                }
+              }
+              
+              // Si aún no hay coincidencia, usar el nombre extraído tal cual
+              if (!channelName) {
+                channelName = extractedChannel.toUpperCase();
+                console.log(`No se encontró mapeo para "${extractedChannel}", usando nombre original`);
+              }
+            } else {
+              console.log(`Mapeo directo encontrado para "${extractedChannel}" → "${channelName}"`);
+            }
+          } else if (note) {
+            // Para tokens no auto-scrapeados, usar el note como nombre de canal
+            // También intentar mapear si corresponde
+            const normalizedNote = note.toLowerCase().trim();
+            channelName = channelNamesMap[normalizedNote] || note;
+            
+            console.log(`Token con note genérico: "${note}" → ${channelName === note ? 'sin mapeo' : `mapeado a "${channelName}"`}`);
+          } else {
+            // Sin note, probablemente un token manual
+            console.log(`Token sin note (${token.substring(0, 10)}...), ignorando`);
+          }
+          
+          // Si se identificó un canal, guardar el token
+          if (channelName) {
+            // Si ya existe un token para este canal, solo sobrescribir si es más reciente
+            if (!tokensByChannel[channelName] || row.createdAt > tokensByChannel[channelName].createdAt) {
+              tokensByChannel[channelName] = {
+                token: token,
+                createdAt: row.createdAt,
+                expiresAt: row.expiresAt,
+                originalNote: note
+              };
+              console.log(`Asignando token para canal "${channelName}": ${token.substring(0, 15)}...`);
+            } else {
+              console.log(`Ya existe un token más reciente para "${channelName}", ignorando este token`);
+            }
+          }
+        });
+        
+        // Convertir a formato esperado por el cliente (solo los tokens)
+        const simplifiedTokens = {};
+        for (const [channel, data] of Object.entries(tokensByChannel)) {
+          simplifiedTokens[channel] = data.token;
         }
         
-        currentTokens[channelName] = row.token;
-      }
+        // Debug: Mostrar tokens mapeados
+        console.log('--- Tokens mapeados por canal ---');
+        Object.entries(simplifiedTokens).forEach(([channel, token]) => {
+          console.log(`${channel}: ${token.substring(0, 15)}...`);
+        });        console.log('--------------------------------');        
+        // Incluir base URLs para los canales        
+        const baseUrls = {          
+          'DIRECTV Sports HD': 'https://Y2FzdGxl.fubohd.com/dsports/mono.m3u8',
+          'DIRECTV Sports 2 HD': 'https://b2ZmaWNpYWw.fubohd.com/dsports2/mono.m3u8',
+          'DIRECTV Sports Plus HD': 'https://x4bnd7lq.fubohd.com/dsportsplus/mono.m3u8',
+          'ESPN': 'https://dglvz29s.fubohd.com/espn/mono.m3u8',
+          'ESPN 2': 'https://Y2FzdGxl.fubohd.com/espn2/mono.m3u8',          
+          'ESPN 3': 'https://c2nvdxq.fubohd.com/espn3/mono.m3u8',          
+          'ESPN 4': 'https://xzc2tdf3.fubohd.com/espn4/mono.m3u8',
+          'ESPN 5': 'https://r4nd0m.fubohd.com/espn5/mono.m3u8',
+          'ESPN 6': 'https://esp6d0m.fubohd.com/espn6/mono.m3u8',
+          'ESPN 7': 'https://mzxncvb.fubohd.com/espn7/mono.m3u8',
+          'ESPN Premium': 'https://aGl2ZQ.fubohd.com/espnpremium/mono.m3u8',
+          'Liga 1 MAX': 'https://bmv3.fubohd.com/liga1max/mono.m3u8'
+        };
+        
+        // Si hay muy pocos tokens, intentar forzar una actualización automática
+        if (Object.keys(simplifiedTokens).length < 5) {
+          console.warn('Se encontraron muy pocos tokens válidos, iniciando actualización automática...');
+          // Iniciar actualización en segundo plano
+          updateAllTokens().catch(err => console.error('Error en actualización automática:', err));
+        }
+        
+        // Responder al cliente con los tokens encontrados
+        res.json({
+          success: true,
+          tokens: simplifiedTokens,
+          baseUrls: baseUrls,
+          count: Object.keys(simplifiedTokens).length,
+          timestamp: Date.now(),
+          message: Object.keys(simplifiedTokens).length < 5 ? 
+                  'Pocos tokens disponibles, se ha iniciado una actualización automática' : 
+                  'Tokens cargados correctamente'
+        });
+      });
     });
-    
-    res.json({
-      success: true,
-      tokens: currentTokens,
-      count: Object.keys(currentTokens).length,
-      timestamp: Date.now()
-    });
-  });
+  } catch (error) {
+    console.error('Error al obtener tokens actuales:', error);
+    res.status(500).json({ success: false, error: 'Error interno del servidor' });
+  }
 });
 
 // Configurar tarea programada para actualizar tokens cada 6 horas
@@ -1377,4 +1805,158 @@ setTimeout(async () => {
 // Iniciar el servidor
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en http://localhost:${PORT}`);
+});
+
+// Endpoint para diagnosticar problemas de scraping
+app.get('/api/scraping-diagnostic', async (req, res) => {
+  try {
+    console.log('Ejecutando diagnóstico de scraping...');
+    
+    // Lista reducida de canales para probar (solo 3 para no sobrecargar)
+    const testChannels = ['dsports', 'espn', 'espnpremium'];
+    const diagnosticResults = [];
+    let successCount = 0;
+    
+    // Probar cada dominio con cada canal
+    const domains = [
+      'pelotalibrehdtv.com',
+      'pelotalibre.me',
+      'pelotalibre.net', 
+      'pelotalibre.live',
+      'futbollibre.net'
+    ];
+    
+    for (const domain of domains) {
+      console.log(`\n==== Probando dominio: ${domain} ====`,);
+      const domainResults = [];
+      
+      for (const channel of testChannels) {
+        try {
+          // URL específica para este dominio y canal
+          const url = `https://${domain}/canales.php?stream=${channel}`;
+          console.log(`Probando ${url}...`);
+          
+          // Hacer petición con timeout amplio para pruebas
+          const startTime = Date.now();
+          const response = await fetch(url, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            },
+            agent: httpsAgent,
+            timeout: 20000
+          });
+          
+          const responseTime = Date.now() - startTime;
+          
+          if (response.ok) {
+            const html = await response.text();
+            
+            // Buscar token en el HTML
+            let streamUrl = null;
+            let token = null;
+            
+            // Usar diferentes patrones para encontrar la URL
+            const playbackUrlMatch = html.match(/var\s+playbackURL\s*=\s*"([^"]+)"/i);
+            if (playbackUrlMatch && playbackUrlMatch[1]) {
+              streamUrl = playbackUrlMatch[1];
+            }
+            
+            // Si no, probar con regex general
+            if (!streamUrl) {
+              streamUrl = extractM3U8(html);
+            }
+            
+            // Extraer token si encontramos URL
+            if (streamUrl && streamUrl.includes('token=')) {
+              const tokenMatch = streamUrl.match(/token=([^&]+)/);
+              if (tokenMatch) token = tokenMatch[1];
+            }
+            
+            // Registrar resultado
+            const result = {
+              domain,
+              channel,
+              status: response.status,
+              responseTime: `${responseTime}ms`,
+              htmlLength: html.length,
+              streamFound: !!streamUrl,
+              tokenFound: !!token,
+              streamUrl: streamUrl ? streamUrl.substring(0, 50) + '...' : null,
+              token: token ? token.substring(0, 15) + '...' : null
+            };
+            
+            domainResults.push(result);
+            
+            if (token) {
+              successCount++;
+              console.log(`✅ Token encontrado para ${channel} en ${domain}`);
+            } else {
+              console.log(`❌ No se encontró token para ${channel} en ${domain}`);
+            }
+          } else {
+            domainResults.push({
+              domain,
+              channel,
+              status: response.status,
+              responseTime: `${responseTime}ms`,
+              error: `HTTP ${response.status}: ${response.statusText}`
+            });
+            console.log(`❌ Error HTTP ${response.status} para ${channel} en ${domain}`);
+          }
+        } catch (error) {
+          domainResults.push({
+            domain,
+            channel,
+            error: error.message || 'Error desconocido',
+            stack: error.stack
+          });
+          console.log(`❌ Error para ${channel} en ${domain}: ${error.message}`);
+        }
+        
+        // Pequeña pausa entre pruebas
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+      
+      diagnosticResults.push({
+        domain,
+        results: domainResults,
+        successRate: `${Math.round((domainResults.filter(r => r.tokenFound).length / testChannels.length) * 100)}%`
+      });
+    }
+    
+    // Información de entorno y red
+    const networkInfo = {
+      host: req.get('host'),
+      userAgent: req.get('user-agent'),
+      remoteAddress: req.ip || req.connection.remoteAddress,
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV || 'development',
+      platform: process.platform,
+      nodeVersion: process.version
+    };
+    
+    res.json({
+      success: true,
+      summary: {
+        totalTests: domains.length * testChannels.length,
+        successfulTokens: successCount,
+        successRate: `${Math.round((successCount / (domains.length * testChannels.length)) * 100)}%`,
+        bestDomain: diagnosticResults.sort((a, b) => {
+          const aSuccess = a.results.filter(r => r.tokenFound).length;
+          const bSuccess = b.results.filter(r => r.tokenFound).length;
+          return bSuccess - aSuccess;
+        })[0]?.domain || 'Ninguno',
+      },
+      networkInfo,
+      domains: diagnosticResults,
+      timestamp: Date.now()
+    });
+  } catch (error) {
+    console.error('Error en diagnóstico de scraping:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message || 'Error desconocido',
+      stack: error.stack
+    });
+  }
 });
