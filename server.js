@@ -10,6 +10,7 @@ const https = require('https');
 const path = require('path');
 const fs = require('fs');
 const sqlite3 = require('sqlite3').verbose();
+const serverDiagnostic = require('./server_diagnostic');
 
 // Configuración del servidor
 const PORT = process.env.PORT || 4000;
@@ -809,6 +810,191 @@ app.get('/api/tokens/update/:channel', async (req, res) => {
 });
 
 // Servidor Express
+
+// Nueva ruta para diagnóstico de IP y conectividad directamente desde el navegador
+app.get('/ip-check', async (req, res) => {
+  try {
+    // Devolvemos una página HTML con los resultados para poder verla directamente en el navegador
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Diagnóstico de IP - Render</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+          body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; line-height: 1.6; }
+          h1 { color: #333; border-bottom: 1px solid #ddd; padding-bottom: 10px; }
+          .card { border: 1px solid #ddd; border-radius: 4px; padding: 15px; margin: 15px 0; background: #f9f9f9; }
+          .success { color: green; }
+          .error { color: red; }
+          .warning { color: orange; }
+          button { background: #4CAF50; color: white; border: none; padding: 10px 15px; cursor: pointer; border-radius: 4px; }
+          button:hover { background: #45a049; }
+          pre { background: #f5f5f5; padding: 10px; overflow-x: auto; }
+          .loading { display: none; margin: 20px 0; }
+          .recommendation { padding: 10px; margin: 10px 0; border-left: 4px solid #2196F3; background: #e3f2fd; }
+          .critical { border-left-color: #f44336; background: #ffebee; }
+          .high { border-left-color: #ff9800; background: #fff3e0; }
+          .medium { border-left-color: #ffeb3b; background: #fffde7; }
+          .low { border-left-color: #4CAF50; background: #e8f5e9; }
+        </style>
+      </head>
+      <body>
+        <h1>Diagnóstico de IP y Conectividad en Render</h1>
+        
+        <div class="card">
+          <h2>Instrucciones</h2>
+          <p>Esta herramienta realizará un diagnóstico completo para determinar si la IP de Render está bloqueada por los sitios de streaming.</p>
+          <button id="runDiagnostic">Ejecutar Diagnóstico Completo</button>
+          <div id="loading" class="loading">Ejecutando diagnóstico... Esto puede tardar hasta 30 segundos...</div>
+        </div>
+        
+        <div id="results"></div>
+        
+        <script>
+          document.getElementById('runDiagnostic').addEventListener('click', async function() {
+            const loadingDiv = document.getElementById('loading');
+            const resultsDiv = document.getElementById('results');
+            
+            loadingDiv.style.display = 'block';
+            resultsDiv.innerHTML = '';
+            
+            try {
+              const response = await fetch('/api/ip-diagnostic');
+              if (!response.ok) throw new Error('Error en la respuesta del servidor');
+              
+              const data = await response.json();
+              
+              // Mostrar la información de la IP
+              let ipHtml = '<div class="card">';
+              ipHtml += '<h2>Información de IP</h2>';
+              
+              if (data.ipInfo.error) {
+                ipHtml += \`<p class="error">Error al obtener información de IP: \${data.ipInfo.error}</p>\`;
+              } else {
+                ipHtml += \`<p><strong>Dirección IP:</strong> \${data.ipInfo.ip || 'No disponible'}</p>\`;
+                ipHtml += \`<p><strong>Ubicación:</strong> \${data.ipInfo.city || ''}, \${data.ipInfo.region || ''}, \${data.ipInfo.country || ''}</p>\`;
+                ipHtml += \`<p><strong>Organización:</strong> \${data.ipInfo.org || 'No disponible'}</p>\`;
+                ipHtml += \`<p><strong>Host:</strong> \${data.ipInfo.hostname || 'No disponible'}</p>\`;
+              }
+              ipHtml += '</div>';
+              
+              // Mostrar resultado de pruebas de conexión
+              let connectionsHtml = '<div class="card">';
+              connectionsHtml += '<h2>Pruebas de Conexión</h2>';
+              
+              data.connectionTests.forEach(site => {
+                connectionsHtml += \`<h3>\${site.name}</h3>\`;
+                connectionsHtml += \`<p><strong>URL:</strong> \${site.url}</p>\`;
+                
+                if (site.success) {
+                  connectionsHtml += \`<p class="success">✅ ACCESIBLE</p>\`;
+                } else {
+                  connectionsHtml += \`<p class="error">❌ BLOQUEADO o INACCESIBLE</p>\`;
+                }
+                
+                connectionsHtml += '<p><strong>Intentos:</strong></p>';
+                connectionsHtml += '<ul>';
+                site.tests.forEach(test => {
+                  if (test.success) {
+                    connectionsHtml += \`<li class="success">✅ Éxito: Estado \${test.status} (\${test.elapsedTime}ms) - User-Agent: \${test.userAgent}</li>\`;
+                  } else if (test.error) {
+                    connectionsHtml += \`<li class="error">❌ Error: \${test.error} - User-Agent: \${test.userAgent}</li>\`;
+                  } else {
+                    connectionsHtml += \`<li class="warning">⚠️ Estado: \${test.status} - User-Agent: \${test.userAgent}</li>\`;
+                  }
+                });
+                connectionsHtml += '</ul>';
+              });
+              connectionsHtml += '</div>';
+              
+              // Mostrar resultado de extracción de tokens
+              let tokensHtml = '<div class="card">';
+              tokensHtml += '<h2>Extracción de Tokens</h2>';
+              
+              if (data.tokenTests.length === 0) {
+                tokensHtml += '<p class="warning">⚠️ No se realizaron pruebas de extracción de tokens</p>';
+              } else {
+                data.tokenTests.forEach(test => {
+                  tokensHtml += \`<h3>\${test.name}</h3>\`;
+                  tokensHtml += \`<p><strong>URL:</strong> \${test.url}</p>\`;
+                  
+                  if (test.error) {
+                    tokensHtml += \`<p class="error">❌ ERROR: \${test.error}</p>\`;
+                  } else if (test.tokenFound) {
+                    tokensHtml += \`<p class="success">✅ TOKEN ENCONTRADO: \${test.token.substring(0, 15)}...</p>\`;
+                    if (test.streamUrl) {
+                      tokensHtml += \`<p><strong>Stream URL:</strong> \${test.streamUrl}</p>\`;
+                    }
+                  } else {
+                    tokensHtml += \`<p class="warning">⚠️ No se encontró token. Longitud del contenido: \${test.contentLength || 'N/A'}</p>\`;
+                    if (test.snippet) {
+                      tokensHtml += \`<p><strong>Fragmento:</strong> \${test.snippet}</p>\`;
+                    }
+                    if (test.possiblyBlocked) {
+                      tokensHtml += \`<p class="error">⛔ Contenido posiblemente bloqueado (detectado Access denied/Forbidden/Captcha)</p>\`;
+                    }
+                  }
+                });
+              }
+              tokensHtml += '</div>';
+              
+              // Mostrar recomendaciones
+              let recommendationsHtml = '<div class="card">';
+              recommendationsHtml += '<h2>Diagnóstico y Recomendaciones</h2>';
+              
+              if (data.recommendations.length === 0) {
+                recommendationsHtml += '<p>No hay recomendaciones disponibles</p>';
+              } else {
+                data.recommendations.forEach(rec => {
+                  recommendationsHtml += \`<div class="recommendation \${rec.severity}">\`;
+                  recommendationsHtml += \`<h3>\${rec.issue}</h3>\`;
+                  recommendationsHtml += \`<p><strong>Problema:</strong> \${rec.description}</p>\`;
+                  recommendationsHtml += \`<p><strong>Recomendación:</strong> \${rec.recommendation}</p>\`;
+                  recommendationsHtml += '</div>';
+                });
+              }
+              recommendationsHtml += '</div>';
+              
+              // Añadir todo a la página
+              resultsDiv.innerHTML = ipHtml + connectionsHtml + tokensHtml + recommendationsHtml;
+              
+              // Añadir datos completos para debug
+              let debugHtml = '<div class="card">';
+              debugHtml += '<h2>Datos completos (para desarrolladores)</h2>';
+              debugHtml += '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+              debugHtml += '</div>';
+              resultsDiv.innerHTML += debugHtml;
+              
+            } catch (error) {
+              resultsDiv.innerHTML = \`<div class="card"><h2 class="error">Error</h2><p>\${error.message}</p></div>\`;
+            } finally {
+              loadingDiv.style.display = 'none';
+            }
+          });
+        </script>
+      </body>
+      </html>
+    `);
+  } catch (error) {
+    res.status(500).send(`Error: ${error.message}`);
+  }
+});
+
+// Endpoint de API para diagnóstico de IP
+app.get('/api/ip-diagnostic', async (req, res) => {
+  try {
+    const diagnosticResults = await serverDiagnostic.runFullDiagnostic();
+    res.json(diagnosticResults);
+  } catch (error) {
+    console.error('Error al ejecutar diagnóstico de IP:', error);
+    res.status(500).json({ 
+      error: error.message,
+      stack: error.stack 
+    });
+  }
+});
 
 // Endpoint para diagnóstico detallado de problemas en Render
 app.get('/api/render-diagnostic', async (req, res) => {

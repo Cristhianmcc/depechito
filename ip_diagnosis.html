@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diagnóstico de Render - IP Check</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        h1, h2 {
+            color: #2c3e50;
+        }
+        
+        .container {
+            margin: 20px 0;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+        
+        .success {
+            color: #27ae60;
+        }
+        
+        .error {
+            color: #e74c3c;
+        }
+        
+        .warning {
+            color: #f39c12;
+        }
+        
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        
+        button:hover {
+            background-color: #2980b9;
+        }
+        
+        button:disabled {
+            background-color: #bdc3c7;
+            cursor: not-allowed;
+        }
+        
+        #loading {
+            margin: 20px 0;
+            display: none;
+        }
+        
+        #diagnostic-results {
+            margin-top: 20px;
+        }
+        
+        .site-test {
+            margin: 10px 0;
+            padding: 15px;
+            border-left: 4px solid #3498db;
+            background-color: #ecf0f1;
+        }
+        
+        .site-failed {
+            border-left-color: #e74c3c;
+        }
+        
+        .site-success {
+            border-left-color: #27ae60;
+        }
+        
+        .recommendation {
+            margin: 15px 0;
+            padding: 15px;
+            border-radius: 4px;
+        }
+        
+        .recommendation.high {
+            border-left: 4px solid #e74c3c;
+            background-color: #fadbd8;
+        }
+        
+        .recommendation.medium {
+            border-left: 4px solid #f39c12;
+            background-color: #fef9e7;
+        }
+        
+        .recommendation.low {
+            border-left: 4px solid #3498db;
+            background-color: #ebf5fb;
+        }
+    </style>
+</head>
+<body>
+    <h1>Diagnóstico de Problemas de IP en Render</h1>
+    
+    <div class="container">
+        <h2>¿Por qué tu aplicación no funciona en Render?</h2>
+        <p>Esta herramienta te ayudará a diagnosticar si la IP de Render está bloqueada por los sitios de streaming.</p>
+        
+        <p><strong>Instrucciones:</strong></p>
+        <ol>
+            <li>Haz clic en el botón para iniciar el diagnóstico</li>
+            <li>Espera a que termine el análisis (puede tomar hasta 30 segundos)</li>
+            <li>Revisa los resultados y recomendaciones</li>
+        </ol>
+        
+        <button id="start-diagnostic">Iniciar Diagnóstico</button>
+        <div id="loading">
+            <p>Ejecutando pruebas de diagnóstico... Por favor espera (esto puede tardar hasta 30 segundos).</p>
+        </div>
+    </div>
+    
+    <div id="diagnostic-results"></div>
+    
+    <script>
+        document.getElementById('start-diagnostic').addEventListener('click', async function() {
+            const button = document.getElementById('start-diagnostic');
+            const loading = document.getElementById('loading');
+            const resultsContainer = document.getElementById('diagnostic-results');
+            
+            // Mostrar estado de carga
+            button.disabled = true;
+            loading.style.display = 'block';
+            resultsContainer.innerHTML = '';
+            
+            try {
+                // Realizar la solicitud al endpoint de diagnóstico
+                const response = await fetch('/api/ip-diagnostic');
+                if (!response.ok) {
+                    throw new Error(`Error en el servidor: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                displayResults(data);
+            } catch (error) {
+                resultsContainer.innerHTML = `
+                    <div class="container error">
+                        <h2>Error al realizar el diagnóstico</h2>
+                        <p>${error.message}</p>
+                        <p>Intenta nuevamente más tarde o contacta al administrador.</p>
+                    </div>
+                `;
+            } finally {
+                button.disabled = false;
+                loading.style.display = 'none';
+            }
+        });
+        
+        function displayResults(data) {
+            const resultsContainer = document.getElementById('diagnostic-results');
+            let html = '';
+            
+            // Información de IP
+            html += `
+                <div class="container">
+                    <h2>Información de IP</h2>
+                    ${data.ipInfo.error ? 
+                        `<p class="error">Error al obtener información de IP: ${data.ipInfo.error}</p>` : 
+                        `
+                        <p><strong>IP:</strong> ${data.ipInfo.ip || 'No disponible'}</p>
+                        <p><strong>Ubicación:</strong> ${data.ipInfo.city || ''}, ${data.ipInfo.region || ''}, ${data.ipInfo.country || ''}</p>
+                        <p><strong>Organización:</strong> ${data.ipInfo.org || 'No disponible'}</p>
+                        `
+                    }
+                </div>
+            `;
+            
+            // Resultados de pruebas de conexión
+            html += `
+                <div class="container">
+                    <h2>Pruebas de Conexión</h2>
+            `;
+            
+            const controlSites = data.connectionTests.filter(site => site.name.includes('Control'));
+            const streamingSites = data.connectionTests.filter(site => 
+                (site.url.includes('fubohd.com') || site.url.includes('.m3u8')) && !site.name.includes('Control')
+            );
+            const webSites = data.connectionTests.filter(site => 
+                !site.name.includes('Control') && !site.url.includes('fubohd.com') && !site.url.includes('.m3u8')
+            );
+            
+            // Sitios de control
+            html += `<h3>Sitios de Control</h3>`;
+            controlSites.forEach(site => {
+                html += `
+                    <div class="site-test ${site.success ? 'site-success' : 'site-failed'}">
+                        <h4>${site.name}</h4>
+                        <p>${site.success ? 
+                            `<span class="success">✓ Accesible</span>` : 
+                            `<span class="error">✗ No accesible</span>`}
+                        </p>
+                        <p><small>URL: ${site.url}</small></p>
+                    </div>
+                `;
+            });
+            
+            // Sitios web de streaming
+            html += `<h3>Sitios Web de Streaming</h3>`;
+            webSites.forEach(site => {
+                html += `
+                    <div class="site-test ${site.success ? 'site-success' : 'site-failed'}">
+                        <h4>${site.name}</h4>
+                        <p>${site.success ? 
+                            `<span class="success">✓ Accesible</span>` : 
+                            `<span class="error">✗ No accesible</span>`}
+                        </p>
+                        <p><small>URL: ${site.url}</small></p>
+                    </div>
+                `;
+            });
+            
+            // URLs de streams directos
+            html += `<h3>URLs de Streams</h3>`;
+            streamingSites.forEach(site => {
+                html += `
+                    <div class="site-test ${site.success ? 'site-success' : 'site-failed'}">
+                        <h4>${site.name}</h4>
+                        <p>${site.success ? 
+                            `<span class="success">✓ Accesible</span>` : 
+                            `<span class="error">✗ No accesible</span>`}
+                        </p>
+                        <p><small>URL: ${site.url}</small></p>
+                    </div>
+                `;
+            });
+            
+            html += `</div>`;
+            
+            // Resultados de extracción de tokens
+            if (data.tokenTests && data.tokenTests.length > 0) {
+                html += `
+                    <div class="container">
+                        <h2>Extracción de Tokens</h2>
+                `;
+                
+                data.tokenTests.forEach(test => {
+                    html += `
+                        <div class="site-test ${test.tokenFound ? 'site-success' : 'site-failed'}">
+                            <h4>${test.name}</h4>
+                            ${test.error ? 
+                                `<p class="error">Error: ${test.error}</p>` :
+                                test.tokenFound ? 
+                                    `<p class="success">✓ Token encontrado: ${test.token.substring(0, 15)}...</p>` :
+                                    `<p class="error">✗ No se encontró token</p>`
+                            }
+                            ${test.possiblyBlocked ? 
+                                `<p class="warning">⚠️ Posible contenido bloqueado o acceso denegado</p>` : ''
+                            }
+                        </div>
+                    `;
+                });
+                
+                html += `</div>`;
+            }
+            
+            // Recomendaciones
+            html += `
+                <div class="container">
+                    <h2>Diagnóstico y Recomendaciones</h2>
+            `;
+            
+            if (data.recommendations && data.recommendations.length > 0) {
+                data.recommendations.forEach(rec => {
+                    html += `
+                        <div class="recommendation ${rec.severity}">
+                            <h3>${rec.issue}</h3>
+                            <p><strong>Problema:</strong> ${rec.description}</p>
+                            <p><strong>Recomendación:</strong> ${rec.recommendation}</p>
+                        </div>
+                    `;
+                });
+            } else {
+                html += `<p class="warning">No hay recomendaciones disponibles.</p>`;
+            }
+            
+            html += `</div>`;
+            
+            resultsContainer.innerHTML = html;
+        }
+    </script>
+</body>
+</html>
