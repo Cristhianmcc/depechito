@@ -39,12 +39,29 @@ app.use((req, res, next) => {
   next();
 });
 
+// Lista de User-Agents para rotación y evitar bloqueos
+const USER_AGENTS = [
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Safari/605.1.15',
+  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/116.0',
+  'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/103.0.5060.63 Mobile/15E148 Safari/604.1'
+];
+
+// Función para obtener un User-Agent aleatorio
+function getRandomUserAgent() {
+  return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
+}
+
 // Permitir el procesamiento de JSON en el cuerpo de las peticiones
 app.use(express.json());
 
 // Agente HTTPS que ignora errores de certificado SSL
 const httpsAgent = new https.Agent({
-  rejectUnauthorized: false
+  rejectUnauthorized: false,
+  keepAlive: true, // Mantener conexiones abiertas
+  timeout: 30000 // Timeout más largo para conexiones difíciles
 });
 
 // Configuración para la base de datos SQLite
@@ -355,6 +372,31 @@ async function extractFromRojaDirecta(eventNameOrChannel) {
 async function scrapePelotaLibreHDTV(channel) {
   console.log(`Buscando token para canal ${channel} en pelotalibrehdtv.com...`);
   
+  // Lista de User-Agents para rotación y evitar bloqueos
+  const userAgents = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Safari/605.1.15',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/116.0',
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/103.0.5060.63 Mobile/15E148 Safari/604.1'
+  ];
+  
+  // Obtener un User-Agent aleatorio
+  const randomUserAgent = userAgents[Math.floor(Math.random() * userAgents.length)];
+  
+  // Dominios comunes de referencia para evitar bloqueos
+  const refererDomains = [
+    'https://www.google.com/',
+    'https://facebook.com/',
+    'https://twitter.com/',
+    'https://instagram.com/',
+    'https://youtube.com/'
+  ];
+  
+  // Obtener un referer aleatorio
+  const randomReferer = refererDomains[Math.floor(Math.random() * refererDomains.length)];
+  
   // Mapeo de nombres de canales a los identificadores en pelotalibrehdtv
   const channelMap = {
     'dsports': 'dsports',
@@ -422,6 +464,8 @@ async function scrapePelotaLibreHDTV(channel) {
   
   // Información para debug
   console.log(`Canal normalizado: "${normalizedChannel}" → ID en pelotalibrehdtv: "${channelId}"`);
+  console.log(`User-Agent: ${randomUserAgent}`);
+  console.log(`Referer: ${randomReferer}`);
   
   // Intentar con cada dominio hasta encontrar uno que funcione
   for (const domain of domains) {
@@ -431,13 +475,20 @@ async function scrapePelotaLibreHDTV(channel) {
     try {
       // Configurar los headers para parecer un navegador normal
       const headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'User-Agent': randomUserAgent,
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
         'Accept-Language': 'es-ES,es;q=0.8,en-US;q=0.5,en;q=0.3',
-        'Referer': `https://${domain}/`,
+        'Referer': randomReferer,
         'Connection': 'keep-alive',
         'Upgrade-Insecure-Requests': '1',
-        'Cache-Control': 'max-age=0'
+        'Cache-Control': 'max-age=0',
+        'Sec-Ch-Ua': '"Chromium";v="116", "Not)A;Brand";v="24", "Google Chrome";v="116"',
+        'Sec-Ch-Ua-Mobile': '?0',
+        'Sec-Ch-Ua-Platform': '"Windows"',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Sec-Fetch-User': '?1'
       };
       
       // Hacer la petición con un timeout razonable
@@ -446,11 +497,12 @@ async function scrapePelotaLibreHDTV(channel) {
         method: 'GET',
         headers,
         agent: httpsAgent,
-        timeout: 15000 // Aumentamos el timeout a 15 segundos
+        timeout: 20000 // Aumentamos el timeout a 20 segundos
       });
       
       if (!response.ok) {
         console.error(`Error al acceder a ${domain}: ${response.status} ${response.statusText}`);
+        console.log(`Response headers: ${JSON.stringify(Object.fromEntries([...response.headers]))}`);
         continue; // Intentar con el siguiente dominio
       }
       
@@ -758,14 +810,246 @@ app.get('/api/tokens/update/:channel', async (req, res) => {
 
 // Servidor Express
 
-// Endpoint para verificar el estado del servidor
-app.get('/api/status', (req, res) => {
-  res.json({
-    status: 'online',
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV || 'development',
-    host: req.get('host')
-  });
+// Endpoint para diagnóstico detallado de problemas en Render
+app.get('/api/render-diagnostic', async (req, res) => {
+  try {
+    console.log('Ejecutando diagnóstico de problemas en Render...');
+    
+    // 1. Recopilar información del entorno
+    const environment = {
+      nodeVersion: process.version,
+      platform: process.platform,
+      env: process.env.NODE_ENV || 'development',
+      memoryUsage: process.memoryUsage(),
+      uptime: process.uptime(),
+      serverHost: req.get('host'),
+      clientIP: req.ip || req.connection.remoteAddress,
+      userAgent: req.get('user-agent'),
+      timestamp: new Date().toISOString()
+    };
+    
+    // 2. Comprobar conectividad básica a Internet
+    let connectivityResults = [];
+    const testSites = [
+      { name: 'Google', url: 'https://www.google.com' },
+      { name: 'Cloudflare', url: 'https://1.1.1.1' },
+      { name: 'PelotaLibre', url: 'https://pelotalibrehdtv.com' },
+      { name: 'FuboHD', url: 'https://fubohd.com' }
+    ];
+    
+    for (const site of testSites) {
+      try {
+        const startTime = Date.now();
+        const response = await fetch(site.url, { 
+          agent: httpsAgent,
+          timeout: 10000,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+          }
+        });
+        const responseTime = Date.now() - startTime;
+        
+        connectivityResults.push({
+          site: site.name,
+          url: site.url,
+          status: response.status,
+          responseTime: `${responseTime}ms`,
+          ok: response.ok,
+          headers: Object.fromEntries([...response.headers])
+        });
+      } catch (error) {
+        connectivityResults.push({
+          site: site.name,
+          url: site.url,
+          error: error.message,
+          stack: error.stack
+        });
+      }
+    }
+    
+    // 3. Probar scrapeo específico para un canal popular
+    let scrapingResults = [];
+    const testChannels = ['espn', 'dsports'];
+    
+    for (const channel of testChannels) {
+      try {
+        const startTime = Date.now();
+        const result = await scrapePelotaLibreHDTV(channel);
+        const elapsedTime = Date.now() - startTime;
+        
+        if (result) {
+          scrapingResults.push({
+            channel,
+            success: true,
+            tokenFound: !!result.token,
+            baseUrl: result.baseUrl,
+            tokenLength: result.token?.length || 0,
+            source: result.source,
+            elapsedTime: `${elapsedTime}ms`
+          });
+        } else {
+          scrapingResults.push({
+            channel,
+            success: false,
+            elapsedTime: `${elapsedTime}ms`,
+            error: 'No se pudo obtener token'
+          });
+        }
+      } catch (error) {
+        scrapingResults.push({
+          channel,
+          success: false,
+          error: error.message,
+          stack: error.stack
+        });
+      }
+    }
+    
+    // 4. Probar acceso directo a streams conocidos con distintos User-Agents
+    let streamAccessResults = [];
+    const streamUrls = [
+      'https://Y2FzdGxl.fubohd.com/dsports/mono.m3u8',
+      'https://dglvz29s.fubohd.com/espn/mono.m3u8'
+    ];
+    
+    // Lista de User-Agents para probar
+    const testUserAgents = [
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Safari/605.1.15',
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/103.0.5060.63 Mobile/15E148 Safari/604.1'
+    ];
+    
+    for (const streamUrl of streamUrls) {
+      for (const userAgent of testUserAgents) {
+        try {
+          const startTime = Date.now();
+          const response = await fetch(`${streamUrl}?token=test123456789`, {
+            headers: {
+              'User-Agent': userAgent,
+              'Referer': 'https://pelotalibrehdtv.com/'
+            },
+            agent: httpsAgent,
+            timeout: 10000
+          });
+          const responseTime = Date.now() - startTime;
+          
+          streamAccessResults.push({
+            url: streamUrl,
+            userAgent: userAgent.substring(0, 20) + '...',
+            status: response.status,
+            responseTime: `${responseTime}ms`,
+            headers: Object.fromEntries([...response.headers])
+          });
+        } catch (error) {
+          streamAccessResults.push({
+            url: streamUrl,
+            userAgent: userAgent.substring(0, 20) + '...',
+            error: error.message
+          });
+        }
+      }
+    }
+    
+    // 5. Verificar tokens activos en la base de datos
+    let dbTokensResults = {};
+    
+    try {
+      await new Promise((resolve) => {
+        db.all('SELECT COUNT(*) as count FROM tokens WHERE expiresAt > ?', [Date.now()], (err, rows) => {
+          if (err) {
+            dbTokensResults.error = err.message;
+          } else {
+            dbTokensResults.activeTokens = rows[0]?.count || 0;
+          }
+          resolve();
+        });
+      });
+      
+      await new Promise((resolve) => {
+        db.all('SELECT note, COUNT(*) as count FROM tokens WHERE expiresAt > ? GROUP BY note', [Date.now()], (err, rows) => {
+          if (err) {
+            dbTokensResults.error = err.message;
+          } else {
+            dbTokensResults.tokensByChannel = rows;
+          }
+          resolve();
+        });
+      });
+    } catch (dbError) {
+      dbTokensResults.error = dbError.message;
+      dbTokensResults.stack = dbError.stack;
+    }
+    
+    // 6. Comprobar enlaces directos actuales
+    const directLinksStatus = Object.entries(DSPORTS_DIRECT_LINKS).map(([channel, url]) => {
+      return {
+        channel,
+        hasToken: url && url.includes('token='),
+        urlLength: url?.length || 0,
+        urlPrefix: url?.substring(0, 30) + '...' || 'N/A'
+      };
+    });
+    
+    // 7. Recomendaciones basadas en los resultados
+    let recommendations = [];
+    
+    // Revisar conectividad
+    if (connectivityResults.some(r => !r.ok && r.site !== 'FuboHD')) {
+      recommendations.push('Problemas de conectividad general detectados. Verificar red de Render.');
+    }
+    
+    // Revisar acceso a FuboHD
+    const fuboAccess = connectivityResults.find(r => r.site === 'FuboHD');
+    if (fuboAccess && !fuboAccess.ok) {
+      recommendations.push('FuboHD está bloqueando el acceso desde los servidores de Render. Considerar usar un proxy externo.');
+    }
+    
+    // Revisar acceso a PelotaLibre
+    const pelotaLibreAccess = connectivityResults.find(r => r.site === 'PelotaLibre');
+    if (pelotaLibreAccess && !pelotaLibreAccess.ok) {
+      recommendations.push('PelotaLibreHDTV está bloqueando el acceso desde los servidores de Render. Considerar implementar un bypasser de bloqueos IP.');
+    }
+    
+    // Revisar resultado de scraping
+    if (scrapingResults.every(r => !r.success)) {
+      recommendations.push('El scraping está fallando para todos los canales. Es probable que Render esté en una lista negra de estos sitios.');
+    }
+    
+    // Revisar acceso a streams
+    if (streamAccessResults.every(r => r.status !== 200)) {
+      recommendations.push('No se puede acceder a ningún stream directamente. Considerar implementar proxy intermedio.');
+    }
+    
+    // Si hay muy pocos tokens activos
+    if (dbTokensResults.activeTokens < 3) {
+      recommendations.push('Hay muy pocos tokens activos en la base de datos. Considerar obtenerlos manualmente y cargarlos.');
+    }
+    
+    // Resultado final
+    const diagnosticResult = {
+      timestamp: new Date().toISOString(),
+      environment,
+      connectivity: connectivityResults,
+      scraping: scrapingResults,
+      streamAccess: streamAccessResults,
+      database: dbTokensResults,
+      directLinks: directLinksStatus,
+      recommendations,
+      renderSpecific: {
+        note: "Render bloquea IP compartidas en algunos de sus planes. Si es posible, considera actualizar a un plan con IP dedicada."
+      }
+    };
+    
+    // Enviar respuesta
+    res.json(diagnosticResult);
+  } catch (error) {
+    console.error('Error en diagnóstico de Render:', error);
+    res.status(500).json({
+      error: 'Error ejecutando diagnóstico',
+      message: error.message,
+      stack: error.stack
+    });
+  }
 });
 
 app.get('/api/stream/:channel', async (req, res) => {
@@ -1427,17 +1711,142 @@ app.get('/proxy-stream', async (req, res) => {
   console.log(`Proxy solicitado para: ${url.substring(0, 100)}...`);
   
   try {
+    // Rotación de User-Agents para evitar bloqueos
+    const userAgents = [
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Safari/605.1.15',
+      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/116.0'
+    ];
+    
+    // Obtener un User-Agent aleatorio
+    const randomUserAgent = userAgents[Math.floor(Math.random() * userAgents.length)];
+    
+    // Posibles referers
+    const possibleReferers = [
+      'https://pelotalibrehdtv.com/',
+      'https://pelotalibre.me/',
+      'https://pelotalibre.net/',
+      'https://futbollibre.net/',
+      'https://www.google.com/'
+    ];
+    
+    // Seleccionar un referer aleatorio
+    const randomReferer = possibleReferers[Math.floor(Math.random() * possibleReferers.length)];
+    
+    // Extraer el dominio de la URL para usar como Origin
+    let origin;
+    try {
+      const urlObj = new URL(url);
+      origin = urlObj.origin;
+    } catch (e) {
+      origin = 'https://fubohd.com';
+    }
+    
+    // Configuración avanzada de headers para evitar bloqueos
+    const headers = {
+      'User-Agent': randomUserAgent,
+      'Referer': randomReferer,
+      'Origin': origin,
+      'Accept': '*/*',
+      'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8',
+      'Connection': 'keep-alive',
+      'Sec-Fetch-Dest': 'empty',
+      'Sec-Fetch-Mode': 'cors',
+      'Sec-Fetch-Site': 'cross-site',
+      'Pragma': 'no-cache',
+      'Cache-Control': 'no-cache',
+      'TE': 'trailers'
+    };
+    
+    console.log(`Proxy usando User-Agent: ${randomUserAgent}`);
+    console.log(`Proxy usando Referer: ${randomReferer}`);
+    
     const streamResponse = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-        'Referer': 'https://pelotalibrehdtv.com/',
-      },
+      headers,
       agent: httpsAgent,
-      timeout: 15000
+      timeout: 20000
     });
     
     if (!streamResponse.ok) {
       console.error(`Error al obtener stream: ${streamResponse.status} ${streamResponse.statusText}`);
+      console.log(`Response headers: ${JSON.stringify(Object.fromEntries([...streamResponse.headers]))}`);
+      
+      // Si el error es 403 (Forbidden), intentar con diferentes headers
+      if (streamResponse.status === 403) {
+        console.log("Detectado error 403, intentando nuevamente con diferentes headers...");
+        
+        // Segunda oportunidad con headers diferentes
+        const secondAttemptHeaders = {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36',
+          'Accept': '*/*',
+          'Accept-Language': 'en-US,en;q=0.9',
+          'Origin': 'https://pelotalibrehdtv.com',
+          'Referer': 'https://pelotalibrehdtv.com/',
+          'sec-ch-ua': '"Chromium";v="116", "Not)A;Brand";v="24", "Google Chrome";v="116"',
+          'sec-ch-ua-mobile': '?0',
+          'sec-ch-ua-platform': '"Windows"',
+          'Sec-Fetch-Dest': 'empty',
+          'Sec-Fetch-Mode': 'cors',
+          'Sec-Fetch-Site': 'cross-site'
+        };
+        
+        try {
+          const secondAttemptResponse = await fetch(url, {
+            headers: secondAttemptHeaders,
+            agent: httpsAgent,
+            timeout: 20000
+          });
+          
+          if (secondAttemptResponse.ok) {
+            // Segundo intento exitoso
+            console.log("Segundo intento exitoso con diferentes headers");
+            
+            // Copiar headers relevantes
+            const contentType = secondAttemptResponse.headers.get('content-type');
+            if (contentType) {
+              res.setHeader('Content-Type', contentType);
+            }
+            
+            // Establecer headers CORS explícitos
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+            res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+            
+            // Para archivos M3U8, necesitamos modificar las URLs para que pasen por nuestro proxy
+            if (url.endsWith('.m3u8') || contentType?.includes('application/vnd.apple.mpegurl')) {
+              const body = await secondAttemptResponse.text();
+              
+              // Modificar URLs en el archivo M3U8 para que apunten a nuestro proxy
+              const baseUrl = new URL(url);
+              baseUrl.search = ''; // Eliminar parámetros de búsqueda
+              baseUrl.hash = '';   // Eliminar fragmento
+              const baseUrlString = baseUrl.href.substring(0, baseUrl.href.lastIndexOf('/') + 1);
+              
+              const modifiedBody = body.replace(
+                /(\.ts|\.m3u8)(\?|$)/g,
+                (match, extension, query) => {
+                  return `${extension}${query ? query : ''}`;
+                }
+              );
+              
+              return res.send(modifiedBody);
+            } else {
+              // Para otros tipos de archivos, simplemente transmitir la respuesta
+              secondAttemptResponse.body.pipe(res);
+              return;
+            }
+          } else {
+            console.error(`Segundo intento también falló: ${secondAttemptResponse.status}`);
+            // Continuar con el manejo de error original
+          }
+        } catch (secondError) {
+          console.error("Error en el segundo intento:", secondError);
+          // Continuar con el manejo de error original
+        }
+      }
+      
       return res.status(streamResponse.status).send(`Error al obtener stream: ${streamResponse.statusText}`);
     }
     
@@ -1446,6 +1855,11 @@ app.get('/proxy-stream', async (req, res) => {
     if (contentType) {
       res.setHeader('Content-Type', contentType);
     }
+    
+    // Establecer headers CORS explícitos
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
     
     // Para archivos M3U8, necesitamos modificar las URLs para que pasen por nuestro proxy
     if (url.endsWith('.m3u8') || contentType?.includes('application/vnd.apple.mpegurl')) {
