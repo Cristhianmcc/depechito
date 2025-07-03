@@ -28,8 +28,8 @@ sites = [
     "https://Y2FzdGxl.fubohd.com/dsports/mono.m3u8?token=test123",
     "https://dglvz29s.fubohd.com/espn/mono.m3u8?token=test123",
     "https://aGl2ZQ.fubohd.com/espnpremium/mono.m3u8?token=test123",
-    "https://www.pelotalibrehdtv.com/pelota/espn-4/", # Página específica para extracción de tokens
-    "https://www.pelotalibrehdtv.com/pelota/espn-premium/", # Otra página importante
+    "https://pelotalibrehdtv.com/tv/espn-4/", # Página actualizada para extracción de tokens
+    "https://pelotalibrehdtv.com/tv/espn-premium/", # Página actualizada
     "https://google.com",  # Control - debería funcionar siempre
     "https://cloudflare.com"  # Otro control
 ]
@@ -89,7 +89,7 @@ for site in sites:
                 print(f"    ✅ ACCESIBLE (200 OK) - {elapsed:.2f}s")
                 
                 # Si es una URL que podría contener tokens, intentar extraer contenido
-                if "pelotalibrehdtv.com/pelota/" in site:
+                if "pelotalibrehdtv.com/tv/" in site or "pelotalibrehdtv.com/pelota/" in site:
                     print("    🔍 Comprobando contenido para extracción de token...")
                     get_cmd = [
                         "curl", 
