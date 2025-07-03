@@ -14,7 +14,7 @@ const serverDiagnostic = require('./server_diagnostic');
 
 // Configuración del servidor
 const PORT = process.env.PORT || 4000;
-const APP_URL = process.env.APP_URL || 'https://depechito.onrender.com';
+const APP_URL = process.env.APP_URL || 'http://31.97.247.127:4000';
 const app = express();
 
 // Habilitar CORS para todas las rutas con opciones extendidas
